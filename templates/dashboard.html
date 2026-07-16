@@ -918,7 +918,13 @@
 <div class="page" id="page-messages">
     <div class="page-header">
         <h2><i class="fas fa-comments" style="color:var(--blue)"></i> 消息监控</h2>
-        <button class="btn btn-ghost btn-sm" onclick="refreshMessages()"><i class="fas fa-sync"></i> 刷新</button>
+        <div style="display:flex;align-items:center;gap:8px">
+            <label style="font-size:12px;color:var(--text3);white-space:nowrap">每</label>
+            <input type="number" id="refreshSeconds" value="0" min="0" max="300" style="width:56px;padding:4px 6px;font-size:12px;text-align:center;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--rs);color:var(--text)">
+            <label style="font-size:12px;color:var(--text3);white-space:nowrap">秒刷新</label>
+            <span id="autoRefreshDot" style="width:8px;height:8px;border-radius:50%;background:#555;display:inline-block;transition:.3s"></span>
+            <button class="btn btn-ghost btn-sm" onclick="refreshMessages()"><i class="fas fa-sync"></i> 刷新</button>
+        </div>
     </div>
     <div class="card full">
         <div class="card-title"><i class="fas fa-stream"></i> 最近消息流</div>
@@ -1401,6 +1407,8 @@ async function removeGroup(gid) {
 }
 
 // ─── Messages ───
+let _msgTimer = null;
+
 async function refreshMessages() {
     const r = await api('GET', '/api/messages?limit=30');
     if (!r || !r.messages) return;
@@ -1415,8 +1423,30 @@ async function refreshMessages() {
             <div class="msg-text">${(m.text||'').slice(0,200)}</div>
         </div>
     `).join('');
-    toast('已刷新', 'info');
+    // Flash dot
+    const dot = document.getElementById('autoRefreshDot');
+    if (dot) { dot.style.background = 'var(--green)'; setTimeout(()=>dot.style.background='#555', 300); }
 }
+
+function startAutoRefresh() {
+    const input = document.getElementById('refreshSeconds');
+    const secs = parseInt(input?.value) || 0;
+    stopAutoRefresh();
+    if (secs < 3) { document.getElementById('autoRefreshDot').style.background = '#555'; return; }
+    _msgTimer = setInterval(refreshMessages, secs * 1000);
+    const dot = document.getElementById('autoRefreshDot');
+    if (dot) dot.style.background = 'var(--green)';
+    toast(`每 ${secs} 秒自动刷新`, 'info');
+}
+
+function stopAutoRefresh() {
+    if (_msgTimer) { clearInterval(_msgTimer); _msgTimer = null; }
+    const dot = document.getElementById('autoRefreshDot');
+    if (dot) dot.style.background = '#555';
+}
+
+// Monitor refreshSeconds input for changes
+document.querySelector('#refreshSeconds')?.addEventListener('change', startAutoRefresh);
 
 // ─── Keywords ───
 async function addKeyword() {
@@ -1755,9 +1785,14 @@ async function saveAIGroups() {
 // Load AI config on page switch
 const origSwitchPage = switchPage;
 switchPage = function(page) {
+    stopAutoRefresh();  // Stop any auto-refresh on page switch
     origSwitchPage(page);
     if (page === 'ai') setTimeout(loadAIConfig, 100);
     if (page === 'security') setTimeout(loadSecurityPage, 100);
+    if (page === 'messages') {
+        refreshMessages();
+        setTimeout(startAutoRefresh, 200);
+    }
 };
 // Load auto-reply on page load
 (async function() {
