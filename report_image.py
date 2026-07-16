@@ -40,18 +40,18 @@ _font_medium = None
 _font_small = None
 _font_bold = None
 _font_emoji = None
+_font_file_cached = None  # Cache found font path
 
 
-def _load_fonts():
-    """Load fonts, falling back to default if custom fonts not available."""
-    global _fonts_loaded, _font_large, _font_medium, _font_small, _font_bold
+def _find_font():
+    """Find a suitable CJK font and cache the result."""
+    global _font_file_cached
+    if _font_file_cached:
+        return _font_file_cached
 
-    if _fonts_loaded:
-        return
-
-    # Try to find a good CJK-supporting font
     font_paths = [
         "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
         "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
@@ -61,36 +61,52 @@ def _load_fonts():
         "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
     ]
 
-    font_file = None
     for fp in font_paths:
         if os.path.exists(fp):
-            font_file = fp
-            break
+            _font_file_cached = fp
+            return fp
 
-    if not font_file:
-        # Search system for any CJK font
+    # Search system for any CJK font (cached after first run)
+    try:
         import subprocess
-        try:
-            result = subprocess.run(
-                ["fc-list", ":lang=zh", "file"],
-                capture_output=True, text=True, timeout=5
-            )
-            lines = [l.strip() for l in result.stdout.split("\n") if l.strip()]
-            if lines:
-                font_file = lines[0].split(":")[0]
-        except Exception:
-            pass
+        result = subprocess.run(
+            ["fc-list", ":lang=zh", "file"],
+            capture_output=True, text=True, timeout=5
+        )
+        lines = [l.strip() for l in result.stdout.split("\n") if l.strip()]
+        if lines:
+            font_file = lines[0].split(":")[0]
+            if os.path.exists(font_file):
+                _font_file_cached = font_file
+                return font_file
+    except Exception:
+        pass
 
-    if not font_file:
-        # Last resort — DejaVu
-        font_file = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    # Last resort
+    _font_file_cached = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    return _font_file_cached
+
+
+def _load_fonts():
+    """Load fonts once, reusing cached font path."""
+    global _fonts_loaded, _font_large, _font_medium, _font_small, _font_bold
+
+    if _fonts_loaded:
+        return
+
+    font_file = _find_font()
+    if not font_file or not os.path.exists(font_file):
+        font_file = None
 
     try:
-        _font_large = ImageFont.truetype(font_file, 36)
-        _font_medium = ImageFont.truetype(font_file, 24)
-        _font_small = ImageFont.truetype(font_file, 18)
-        _font_bold = ImageFont.truetype(font_file, 28)
-        logger.info("Loaded font: %s", font_file)
+        if font_file:
+            _font_large = ImageFont.truetype(font_file, 36)
+            _font_medium = ImageFont.truetype(font_file, 24)
+            _font_small = ImageFont.truetype(font_file, 18)
+            _font_bold = ImageFont.truetype(font_file, 28)
+            logger.info("Loaded font: %s", font_file)
+        else:
+            raise OSError("No font file")
     except Exception as e:
         logger.warning("Font load failed, using default: %s", e)
         _font_large = ImageFont.load_default()
@@ -103,31 +119,36 @@ def _load_fonts():
 
 def _draw_rounded_rect(draw, xy, radius, fill, outline=None, outline_width=1):
     """Draw a rounded rectangle."""
-    x1, y1, x2, y2 = xy
     draw.rounded_rectangle(xy, radius=radius, fill=fill, outline=outline or None, width=outline_width if outline else 0)
 
 
-def _draw_stat_card(draw, x, y, width, icon, label, value, color, accent_color):
+def _draw_stat_card(draw, x, y, width, icon, label, value, accent_color):
     """Draw a single stat card."""
     card_h = 80
     _draw_rounded_rect(draw, (x, y, x + width, y + card_h), CARD_RADIUS, fill=COLORS["bg_card"])
 
-    # Icon circle
-    icon_x = x + 16
-    icon_y = y + (card_h - 36) // 2
-    draw.ellipse([icon_x, icon_y, icon_x + 36, icon_y + 36], fill=accent_color + (30,))
+    # Gradient-like accent line on the left
+    draw.rounded_rectangle(
+        [x + 2, y + 8, x + 4, y + card_h - 8], 2,
+        fill=accent_color
+    )
 
-    # Icon text
+    # Icon
     try:
-        draw.text((icon_x + 10, icon_y + 6), icon, fill=accent_color, font=_font_small)
+        draw.text((x + 16, y + 12), icon, fill=accent_color, font=_font_small)
     except Exception:
         pass
 
     # Label
-    draw.text((icon_x + 48, y + 14), label, fill=COLORS["text_muted"], font=_font_small)
+    draw.text((x + 16, y + 38), label, fill=COLORS["text_muted"], font=_font_small)
 
     # Value
-    draw.text((icon_x + 48, y + 38), str(value), fill=accent_color, font=_font_large)
+    draw.text((x + 16, y + 52), str(value), fill=accent_color, font=_font_large)
+
+
+# Cache generated report images in memory (key: group_id+date, value: bytes)
+_report_image_cache: dict = {}
+
 
 
 def generate_report_image(
@@ -138,7 +159,12 @@ def generate_report_image(
     feedback_count: int,
     top_messages: list = None,
 ) -> Optional[bytes]:
-    """Generate a beautiful report summary image and return PNG bytes."""
+    """Generate a report image. Returns cached result if same data."""
+    cache_key = f"{group_title}:{report_date}:{msg_count}:{active_users}:{feedback_count}"
+    cached = _report_image_cache.get(cache_key)
+    if cached:
+        return cached
+
     try:
         _load_fonts()
     except Exception as e:
@@ -148,7 +174,7 @@ def generate_report_image(
     top_messages = top_messages or []
 
     # Calculate height based on content
-    base_height = 480
+    base_height = 460
     extra_height = len(top_messages) * 28
     height = base_height + extra_height
 
@@ -162,16 +188,14 @@ def generate_report_image(
     _draw_rounded_rect(draw, (PADDING, PADDING, WIDTH - PADDING, PADDING + header_h),
                        CARD_RADIUS, fill=COLORS["bg_card"])
 
-    # TG Monitor logo area
-    draw.ellipse([PADDING + 20, PADDING + 20, PADDING + 56, PADDING + 56],
-                 fill=COLORS["accent_blue"])
+    # Logo accent bar
+    draw.rounded_rectangle([PADDING + 20, PADDING + 20, PADDING + 24, PADDING + 56],
+                           4, fill=COLORS["accent_blue"])
     try:
-        draw.text((PADDING + 28, PADDING + 26), "📊", fill="white", font=_font_small)
+        draw.text((PADDING + 36, PADDING + 24), "📊 TG Monitor", fill=COLORS["accent_blue"], font=_font_medium)
     except Exception:
-        pass
-
-    draw.text((PADDING + 72, PADDING + 16), "TG Monitor", fill=COLORS["accent_blue"], font=_font_medium)
-    draw.text((PADDING + 72, PADDING + 48), "群聊日报", fill=COLORS["text_secondary"], font=_font_small)
+        draw.text((PADDING + 36, PADDING + 28), "TG Monitor", fill=COLORS["accent_blue"], font=_font_medium)
+    draw.text((PADDING + 36, PADDING + 52), "群聊日报", fill=COLORS["text_secondary"], font=_font_small)
 
     # Date badge
     date_text = report_date
@@ -190,9 +214,9 @@ def generate_report_image(
                        CARD_RADIUS, fill=COLORS["bg_card"])
 
     try:
-        draw.text((PADDING + 20, y + 12), f"📋  {group_title}", fill=COLORS["text_primary"], font=_font_small)
+        draw.text((PADDING + 20, y + 14), f"📋  {group_title}", fill=COLORS["text_primary"], font=_font_small)
     except Exception:
-        draw.text((PADDING + 20, y + 12), group_title, fill=COLORS["text_primary"], font=_font_small)
+        draw.text((PADDING + 20, y + 14), group_title, fill=COLORS["text_primary"], font=_font_small)
 
     y += title_h + CARD_GAP
 
@@ -205,7 +229,7 @@ def generate_report_image(
     ]
     for i, (icon, label, value, color) in enumerate(stats):
         sx = PADDING + i * (stat_w + CARD_GAP)
-        _draw_stat_card(draw, sx, y, stat_w, icon, label, value, color, color)
+        _draw_stat_card(draw, sx, y, stat_w, icon, label, value, color)
 
     y += 80 + CARD_GAP
 
@@ -247,7 +271,6 @@ def generate_report_image(
             text = msg.get("text", "")[:60]
             item_h = 28
 
-            # Alternate background
             bg = COLORS["bg_card"]
             draw.rounded_rectangle([PADDING, y, WIDTH - PADDING, y + item_h],
                                    radius=6, fill=bg)
@@ -267,19 +290,35 @@ def generate_report_image(
     now_str = datetime.now().strftime("%H:%M")
     draw.text((WIDTH - PADDING - 100, footer_y), now_str, fill=COLORS["text_muted"], font=_font_small)
 
-    # Output to bytes
+    # Output to bytes with optimized compression
     buf = io.BytesIO()
-    img.save(buf, format="PNG", optimize=True)
+    img.save(buf, format="PNG", optimize=True, compress_level=9)
     buf.seek(0)
-    logger.info("Report image generated: %dx%d, %.1fKB", WIDTH, height, len(buf.getvalue()) / 1024)
-    return buf.getvalue()
+    result = buf.getvalue()
+    logger.info("Report image: %dx%d, %.1fKB", WIDTH, height, len(result) / 1024)
+
+    # Cache result
+    _report_image_cache[cache_key] = result
+    # Limit cache size
+    if len(_report_image_cache) > 50:
+        _report_image_cache.clear()
+    return result
 
 
 def generate_multi_group_report(
     reports_data: list,
     report_date: str,
 ) -> Optional[bytes]:
-    """Generate a multi-group summary report image."""
+    """Generate a multi-group summary report image with caching."""
+    # Build cache key from all data
+    cache_parts = [report_date]
+    for r in reports_data:
+        cache_parts.append(f"{r.get('group_id','')}:{r.get('msg_count',0)}")
+    cache_key = "multi:" + "|".join(cache_parts)
+    cached = _report_image_cache.get(cache_key)
+    if cached:
+        return cached
+
     try:
         _load_fonts()
     except Exception as e:
@@ -298,14 +337,13 @@ def generate_multi_group_report(
     header_h = 80
     _draw_rounded_rect(draw, (PADDING, y, WIDTH - PADDING, y + header_h),
                        CARD_RADIUS, fill=COLORS["bg_card"])
-    draw.ellipse([PADDING + 20, y + 16, PADDING + 56, y + 52],
-                 fill=COLORS["accent_blue"])
+    draw.rounded_rectangle([PADDING + 20, y + 16, PADDING + 24, y + 52],
+                           4, fill=COLORS["accent_blue"])
     try:
-        draw.text((PADDING + 28, y + 22), "📊", fill="white", font=_font_small)
+        draw.text((PADDING + 36, y + 18), "📊 TG Monitor 汇总日报", fill=COLORS["accent_blue"], font=_font_medium)
     except Exception:
-        pass
-    draw.text((PADDING + 72, y + 16), "TG Monitor 汇总日报", fill=COLORS["accent_blue"], font=_font_medium)
-    draw.text((PADDING + 72, y + 46), report_date, fill=COLORS["text_secondary"], font=_font_small)
+        draw.text((PADDING + 36, y + 22), "TG Monitor 汇总日报", fill=COLORS["accent_blue"], font=_font_medium)
+    draw.text((PADDING + 36, y + 48), report_date, fill=COLORS["text_secondary"], font=_font_small)
     y += header_h + CARD_GAP
 
     # Total stats
@@ -321,34 +359,39 @@ def generate_multi_group_report(
     y += summary_h + CARD_GAP
 
     # Per-group cards
-    for r in reports_data:
+    colors_cycle = [COLORS["accent_blue"], COLORS["accent_green"], COLORS["accent_orange"], COLORS["accent_purple"]]
+    for idx, r in enumerate(reports_data):
         g_title = r.get("group_title", "未知群组")
         g_msgs = r.get("msg_count", 0)
         g_users = r.get("active_users", 0)
         g_fb = r.get("feedback_count", 0)
+        accent = colors_cycle[idx % len(colors_cycle)]
 
         card_h = 100
         _draw_rounded_rect(draw, (PADDING, y, WIDTH - PADDING, y + card_h),
                            CARD_RADIUS, fill=COLORS["bg_card"])
 
+        # Accent bar
+        draw.rounded_rectangle([PADDING + 2, y + 8, PADDING + 4, y + card_h - 8],
+                               2, fill=accent)
+
         # Group icon
-        draw.ellipse([PADDING + 16, y + 16, PADDING + 48, y + 48],
-                     fill=(91, 141, 239, 40))
         try:
-            draw.text((PADDING + 22, y + 22), "👥", fill="white", font=_font_small)
+            draw.text((PADDING + 16, y + 18), "👥", fill=accent, font=_font_small)
         except Exception:
             pass
 
-        draw.text((PADDING + 64, y + 16), g_title, fill=COLORS["text_primary"], font=_font_medium)
+        draw.text((PADDING + 16, y + 46), g_title, fill=COLORS["text_primary"], font=_font_medium)
 
         # Mini stats row
-        stats_y = y + 50
+        stats_x = PADDING + 200
+        stats_y = y + 24
         mini_items = [
             (f"💬 {g_msgs}", COLORS["accent_blue"]),
             (f"👥 {g_users}", COLORS["accent_green"]),
             (f"📩 {g_fb}", COLORS["accent_orange"]),
         ]
-        sx = PADDING + 64
+        sx = stats_x
         for text, color in mini_items:
             draw.text((sx, stats_y), text, fill=color, font=_font_small)
             text_w = draw.textbbox((0, 0), text, font=_font_small)[2] + 24
@@ -362,7 +405,12 @@ def generate_multi_group_report(
               datetime.now().strftime("%H:%M"), fill=COLORS["text_muted"], font=_font_small)
 
     buf = io.BytesIO()
-    img.save(buf, format="PNG", optimize=True)
+    img.save(buf, format="PNG", optimize=True, compress_level=9)
     buf.seek(0)
-    logger.info("Multi-group report image generated: %dx%d, %.1fKB", WIDTH, height, len(buf.getvalue()) / 1024)
-    return buf.getvalue()
+    result = buf.getvalue()
+    logger.info("Multi-group report: %dx%d, %.1fKB", WIDTH, height, len(result) / 1024)
+
+    _report_image_cache[cache_key] = result
+    if len(_report_image_cache) > 50:
+        _report_image_cache.clear()
+    return result
