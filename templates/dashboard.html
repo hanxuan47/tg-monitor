@@ -1223,6 +1223,38 @@
             <span style="color:var(--text3)">等待操作...</span>
         </div>
     </div>
+
+    <!-- Media Tracker -->
+    <div class="card">
+        <div class="card-title"><i class="fas fa-film"></i> 影视追新通知</div>
+        <div class="alert alert-info"><i class="fas fa-info-circle"></i> 需要 TMDB API Key（免费，在 <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--blue)">themoviedb.org</a> 申请）</div>
+        <div class="form-row">
+            <div class="form-group" style="flex:2">
+                <input type="password" id="tmdbKeyInput" placeholder="TMDB API Key (v3 auth)" style="font-size:13px">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="saveTmdbKey()"><i class="fas fa-save"></i> 保存</button>
+        </div>
+        <div class="form-row" style="margin-top:12px">
+            <div class="form-group" style="flex:1">
+                <select id="mediaType" style="font-size:13px">
+                    <option value="trending">🔥 今日热门影视</option>
+                    <option value="nowplaying">🎬 正在热映</option>
+                    <option value="ontv">📺 今日更新剧集</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex:1">
+                <select id="mediaTargetGroup" style="font-size:13px">
+                    <option value="">仅预览</option>
+                    {% for g in groups %}
+                    <option value="{{ g.group_id }}">发送到: {{ g.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button class="btn btn-green btn-sm" onclick="checkMedia()"><i class="fas fa-search"></i> 查询</button>
+            <button class="btn btn-primary btn-sm" onclick="sendMediaToGroup()"><i class="fas fa-paper-plane"></i> 发送到群</button>
+        </div>
+        <div id="mediaResult" style="margin-top:12px;max-height:400px;overflow-y:auto;font-size:13px;line-height:1.8"></div>
+    </div>
 </div>
 
 </main>
@@ -1695,6 +1727,46 @@ async function aiActiveGroups() {
         aiLog(`  ${'▇'.repeat(Math.min(count,20))} ${name} (${count}条)`, 'text');
     }
 }
+
+// ─── Media Tracker ───
+async function saveTmdbKey() {
+    const key = document.getElementById('tmdbKeyInput').value.trim();
+    if (!key) { toast('请输入 TMDB API Key', 'error'); return; }
+    await api('POST', '/api/config', { key: 'tmdb_key', value: key });
+    toast('TMDB Key 已保存 ✅');
+}
+async function checkMedia() {
+    const type = document.getElementById('mediaType').value;
+    const r = await api('GET', `/api/media/preview?type=${type}`);
+    const el = document.getElementById('mediaResult');
+    if (!r || !r.ok) { el.innerHTML = `<span style="color:var(--red)">${r?.error||'查询失败'}</span>`; return; }
+    el.innerHTML = `<div style="color:var(--text3);margin-bottom:8px">共 ${r.count} 条结果</div>`;
+    for (const item of r.items) {
+        const stars = '⭐'.repeat(Math.max(1, Math.round(item.vote / 2)));
+        el.innerHTML += `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <b>${item.title}</b> ${stars}<br>
+            <span style="color:var(--text3);font-size:12px">${item.date || '?'} | ${item.type}</span>
+            <span style="color:var(--text3);font-size:12px"> ${item.overview ? '· '+item.overview.substring(0,60)+'...' : ''}</span>
+        </div>`;
+    }
+}
+async function sendMediaToGroup() {
+    const type = document.getElementById('mediaType').value;
+    const sel = document.getElementById('mediaTargetGroup');
+    const gid = parseInt(sel.value);
+    if (!gid) { toast('请选择目标群组', 'error'); return; }
+    const r = await api('POST', '/api/media/check', { type, group_id: gid });
+    if (r && r.ok) {
+        toast(`✅ 已发送 ${r.count} 条${r.title}到群聊`);
+        document.getElementById('mediaResult').innerHTML = `<div style="color:var(--green)">✅ 已推送 ${r.count} 条到群聊</div>`;
+    } else { toast(`发送失败: ${r?.error||'未知'}`, 'error'); }
+}
+// Load saved TMDB key
+(async function() {
+    const r = await api('GET', '/api/config?key=tmdb_key');
+    const el = document.getElementById('tmdbKeyInput');
+    if (r && el && r.value && r.value.length > 4) el.placeholder = '已配置 (点击修改)';
+})();
 
 // ─── Theme Toggle ───
 function toggleTheme() {

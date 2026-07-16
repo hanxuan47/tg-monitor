@@ -28,6 +28,7 @@ from database import (
 )
 from bark_notify import send_notification, send_feedback_alert, send_daily_summary
 from report_image import generate_report_image, generate_multi_group_report
+from media_tracker import get_trending, get_now_playing, get_on_the_air, format_media_message, format_media_summary
 
 logging.basicConfig(
     level=logging.INFO,
@@ -505,6 +506,10 @@ class BotSendMsg(BaseModel):
     text: str = ""
     image: str = ""
 
+class MediaQuery(BaseModel):
+    type: str = "trending"  # trending, nowplaying, ontv
+    group_id: Optional[int] = None
+
 
 @app.post("/api/monitor/bot/send")
 async def api_bot_send(data: BotSendMsg):
@@ -548,12 +553,50 @@ async def api_bot_send_report(data: GroupAdd):
         with open(filepath, "wb") as f:
             f.write(img_bytes)
 
-        caption = f"📊 {report['group_title']} 日报\n{report['date']} | 💬 {report['msg_count']}条 | 👥 {report['active_users']}人 | 📩 {report['feedback_count']}条反馈"
+        caption = f"📊 {report['group_title']} 日报\\n{report['date']} | 💬 {report['msg_count']}条 | 👥 {report['active_users']}人 | 📩 {report['feedback_count']}条反馈"
         ok = await monitor._bot_module.send_photo_to_group(data.group_id, filepath, caption)
         return {"ok": ok, "report": report}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+# ─── Media Tracker API ──────────────────────────────────────────
+
+@app.post("/api/media/check")
+async def api_media_check(data: MediaQuery):
+    api_key = await get_config("tmdb_key", "")
+    if not api_key:
+        return {"ok": False, "error": "请先配置 TMDB API Key (themoviedb.org)"}
+    items = []
+    title = ""
+    if data.type == "trending":
+        items = await get_trending(api_key, "all", "day")
+        title = "🎬 今日热门影视"
+    elif data.type == "nowplaying":
+        items = await get_now_playing(api_key)
+        title = "🎬 正在热映"
+    elif data.type == "ontv":
+        items = await get_on_the_air(api_key)
+        title = "📺 今日更新剧集"
+    if data.group_id and monitor._bot_module and monitor._bot_module.is_running():
+        msg = format_media_message(items, title)
+        if len(msg) > 4000:
+            msg = format_media_summary(items, title)
+        await monitor._bot_module.send_to_group(data.group_id, msg)
+    return {"ok": True, "count": len(items), "title": title, "items": items[:5]}
+
+@app.get("/api/media/preview")
+async def api_media_preview(type: str = "trending"):
+    api_key = await get_config("tmdb_key", "")
+    if not api_key:
+        return {"ok": False, "error": "请先配置 TMDB API Key"}
+    items = []
+    if type == "trending":
+        items = await get_trending(api_key, "all", "day")
+    elif type == "nowplaying":
+        items = await get_now_playing(api_key)
+    elif type == "ontv":
+        items = await get_on_the_air(api_key)
+    return {"ok": True, "count": len(items), "items": items[:10]}
 
 # ─── Telethon Mode API ──────────────────────────────────────────
 
