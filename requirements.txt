@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+telethon
+python-telegram-bot[job-queue]
+aiosqlite
+pydantic
+jinja2
+aiofiles
+httpx
+Pillow

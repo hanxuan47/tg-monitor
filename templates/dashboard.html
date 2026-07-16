@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TG Monitor - 群聊管理监控面板</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg-primary: #0f1117;
+            --bg-secondary: #1a1d2e;
+            --bg-card: #1e2038;
+            --bg-card-hover: #252849;
+            --bg-input: #252849;
+            --border-color: #2d3154;
+            --text-primary: #e8eaf0;
+            --text-secondary: #8b8fa3;
+            --text-muted: #5c6080;
+            --accent-blue: #5b8def;
+            --accent-green: #4cd964;
+            --accent-orange: #ff9500;
+            --accent-red: #ff4757;
+            --accent-purple: #a855f7;
+            --accent-cyan: #22d3ee;
+            --shadow: 0 4px 24px rgba(0,0,0,0.3);
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+        }
+        .sidebar {
+            width: 260px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0; left: 0; bottom: 0;
+            z-index: 100;
+            transition: transform .3s;
+        }
+        .sidebar-header {
+            padding: 0 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .sidebar-header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sidebar-header h1 i { color: var(--accent-blue); font-size: 22px; }
+        .sidebar-header .badge {
+            font-size: 10px;
+            background: var(--accent-blue);
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 20px;
+            margin-left: 4px;
+        }
+        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 11px 16px;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all .2s;
+            margin-bottom: 2px;
+        }
+        .nav-item:hover { background: var(--bg-card); color: var(--text-primary); }
+        .nav-item.active { background: var(--accent-blue); color: #fff; }
+        .nav-item i { width: 18px; text-align: center; font-size: 15px; }
+        .nav-section { font-size: 11px; text-transform: uppercase; color: var(--text-muted); padding: 16px 16px 8px; letter-spacing: 1px; }
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-color);
+        }
+        .status-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-dot.online { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
+        .status-dot.offline { background: var(--accent-red); }
+        .main {
+            flex: 1;
+            margin-left: 260px;
+            padding: 24px 32px;
+            max-width: calc(100vw - 260px);
+        }
+        .page { display: none; }
+        .page.active { display: block; }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .page-header h2 { font-size: 22px; font-weight: 600; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 20px;
+            transition: transform .2s;
+        }
+        .stat-card:hover { transform: translateY(-2px); }
+        .stat-card .label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 8px;
+        }
+        .stat-card .value { font-size: 28px; font-weight: 700; }
+        .stat-card .icon { float: right; font-size: 24px; opacity: .3; }
+        .chart-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .chart-container h3 {
+            font-size: 15px;
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+        }
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-title i { color: var(--accent-blue); }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .dashboard-grid .full { grid-column: 1 / -1; }
+        @media (max-width: 800px) { .dashboard-grid { grid-template-columns: 1fr; } }
+        .table-wrap { overflow-x: auto; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th {
+            text-align: left;
+            padding: 10px 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        tr:last-child td { border-bottom: none; }
+        .text-muted { color: var(--text-secondary); font-size: 12px; }
+        .tag {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .tag-blue { background: rgba(91,141,239,.15); color: var(--accent-blue); }
+        .tag-green { background: rgba(76,217,100,.15); color: var(--accent-green); }
+        .tag-orange { background: rgba(255,149,0,.15); color: var(--accent-orange); }
+        .tag-red { background: rgba(255,71,87,.15); color: var(--accent-red); }
+        .tag-purple { background: rgba(168,85,247,.15); color: var(--accent-purple); }
+        .form-group { margin-bottom: 14px; }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+        .form-row { display: flex; gap: 12px; align-items: flex-end; }
+        .form-row .form-group { flex: 1; }
+        input, select {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border .2s;
+        }
+        input:focus { border-color: var(--accent-blue); }
+        input::placeholder { color: var(--text-muted); }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 18px;
+            border-radius: var(--radius-sm);
+            border: none;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all .2s;
+            text-decoration: none;
+        }
+        .btn-primary { background: var(--accent-blue); color: #fff; }
+        .btn-primary:hover { background: #4a7de0; }
+        .btn-green { background: var(--accent-green); color: #000; }
+        .btn-green:hover { opacity: .85; }
+        .btn-red { background: var(--accent-red); color: #fff; }
+        .btn-red:hover { opacity: .85; }
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        .btn-ghost:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .btn-xs { padding: 4px 10px; font-size: 11px; }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn:disabled { opacity: .4; cursor: not-allowed; }
+        .alert {
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+        .alert-info { background: rgba(91,141,239,.1); border: 1px solid rgba(91,141,239,.2); color: var(--accent-blue); }
+        .alert-success { background: rgba(76,217,100,.1); border: 1px solid rgba(76,217,100,.2); color: var(--accent-green); }
+        .alert-danger { background: rgba(255,71,87,.1); border: 1px solid rgba(255,71,87,.2); color: var(--accent-red); }
+        .msg-feed { max-height: 500px; overflow-y: auto; }
+        .msg-item {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            transition: background .2s;
+        }
+        .msg-item:hover { background: var(--bg-card-hover); }
+        .msg-item:last-child { border-bottom: none; }
+        .msg-item.feedback-highlight { border-left: 3px solid var(--accent-orange); }
+        .msg-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            flex-wrap: wrap;
+        }
+        .msg-group { color: var(--accent-blue); }
+        .msg-sender { font-weight: 500; color: var(--accent-cyan); }
+        .msg-text { font-size: 13px; line-height: 1.5; word-break: break-all; }
+        .msg-feedback-badge {
+            display: inline-block;
+            font-size: 10px;
+            background: var(--accent-orange);
+            color: #000;
+            padding: 1px 6px;
+            border-radius: 10px;
+            margin-left: 6px;
+        }
+        .keyword-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 12px 0;
+        }
+        .keyword-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            background: rgba(91,141,239,.12);
+            border: 1px solid rgba(91,141,239,.25);
+            border-radius: 20px;
+            font-size: 13px;
+        }
+        .keyword-tag .remove {
+            cursor: pointer;
+            color: var(--accent-red);
+            font-size: 14px;
+            opacity: .6;
+            transition: opacity .2s;
+        }
+        .keyword-tag .remove:hover { opacity: 1; }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,.6);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 28px;
+            width: 480px;
+            max-width: 90vw;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal h3 { margin-bottom: 20px; font-size: 18px; }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 300;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .toast {
+            padding: 12px 20px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            animation: slideIn .3s ease;
+            min-width: 240px;
+        }
+        .toast-success { background: var(--accent-green); color: #000; }
+        .toast-error { background: var(--accent-red); color: #fff; }
+        .toast-info { background: var(--accent-blue); color: #fff; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .tab-bar {
+            display: flex;
+            gap: 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            font-size: 13px;
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .tab-btn.active {
+            color: var(--accent-blue);
+            border-bottom-color: var(--accent-blue);
+        }
+        .tab-btn:hover { color: var(--text-primary); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .mode-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .mode-bot { background: rgba(168,85,247,.15); color: var(--accent-purple); }
+        .mode-telethon { background: rgba(34,211,238,.15); color: var(--accent-cyan); }
+        .setup-steps {
+            counter-reset: step;
+            padding: 0;
+            list-style: none;
+        }
+        .setup-steps li {
+            counter-increment: step;
+            padding: 8px 0 8px 36px;
+            position: relative;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        .setup-steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 8px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .setup-steps li strong { color: var(--text-primary); }
+        .info-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 8px 16px;
+            font-size: 13px;
+        }
+        .info-grid .label { color: var(--text-muted); }
+        .info-grid .value { color: var(--text-primary); }
+        @media (max-width: 900px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; max-width: 100vw; padding: 16px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+        .mobile-toggle { display: none; position: fixed; top: 16px; left: 16px; z-index: 101; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px 14px; color: var(--text-primary); font-size: 18px; cursor: pointer; }
+        @media (max-width: 900px) { .mobile-toggle { display: block; } }
+    </style>
+</head>
+<body>
+
+<button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+    <i class="fas fa-bars"></i>
+</button>
+
+<!-- ─── Sidebar ─── -->
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <h1>
+            <i class="fas fa-robot"></i> TG Monitor
+            <span class="badge">v2.0</span>
+        </h1>
+    </div>
+    <nav class="sidebar-nav">
+        <div class="nav-section">导航</div>
+        <a class="nav-item active" data-page="overview" onclick="switchPage('overview')">
+            <i class="fas fa-chart-pie"></i> 总览
+        </a>
+        <a class="nav-item" data-page="groups" onclick="switchPage('groups')">
+            <i class="fas fa-users"></i> 群组管理
+        </a>
+        <a class="nav-item" data-page="messages" onclick="switchPage('messages')">
+            <i class="fas fa-comments"></i> 消息监控
+        </a>
+        <a class="nav-item" data-page="feedback" onclick="switchPage('feedback')">
+            <i class="fas fa-bell"></i> 反馈监控
+        </a>
+        <a class="nav-item" data-page="reports" onclick="switchPage('reports')">
+            <i class="fas fa-file-alt"></i> 日报汇总
+        </a>
+        <div class="nav-section">设置</div>
+        <a class="nav-item" data-page="telegram" onclick="switchPage('telegram')">
+            <i class="fab fa-telegram"></i> Telegram 连接
+        </a>
+        <a class="nav-item" data-page="bark" onclick="switchPage('bark')">
+            <i class="fas fa-bolt"></i> Bark 通知
+        </a>
+    </nav>
+    <div class="sidebar-footer">
+        <div>
+            <span class="status-dot {{ 'online' if monitoring else 'offline' }}" id="statusDot"></span>
+            <span id="statusText" style="font-size:13px">
+                {{ '🟢 运行中' if monitoring else '🔴 已停止' }}
+                {% if monitor_mode == 'bot' %}<span class="mode-badge mode-bot">🤖 Bot</span>{% endif %}
+                {% if monitor_mode == 'telethon' %}<span class="mode-badge mode-telethon">📱 Telethon</span>{% endif %}
+            </span>
+        </div>
+    </div>
+</aside>
+
+<!-- ─── Main Content ─── -->
+<main class="main">
+
+<!-- ========== PAGE: Overview ========== -->
+<div class="page active" id="page-overview">
+    <div class="page-header">
+        <h2><i class="fas fa-chart-pie" style="color:var(--accent-blue)"></i> 总览</h2>
+        <span style="font-size:13px;color:var(--text-muted)">实时更新 · <span id="refreshTime">{{ now }}</span></span>
+    </div>
+    <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="icon"><i class="fas fa-users"></i></div><div class="label">监控群组</div><div class="value" id="statGroups">{{ stats.total_groups }}</div></div>
+        <div class="stat-card"><div class="icon"><i class="fas fa-comment-dots"></i></div><div class="label">今日消息</div><div class="value" id="statTodayMsgs">{{ stats.today_msgs }}</div></div>
+        <div class="stat-card"><div class="icon"><i class="fas fa-rocket"></i></div><div class="label">今日活跃群</div><div class="value" id="statActiveGroups">{{ stats.active_groups }}</div></div>
+        <div class="stat-card"><div class="icon"><i class="fas fa-exclamation-circle"></i></div><div class="label">今日反馈</div><div class="value" id="statFeedback">{{ stats.today_feedback }}</div></div>
+        <div class="stat-card"><div class="icon"><i class="fas fa-database"></i></div><div class="label">历史消息总计</div><div class="value" id="statTotalMsgs">{{ stats.total_msgs }}</div></div>
+        <div class="stat-card"><div class="icon"><i class="fas fa-circle"></i></div><div class="label">监控状态</div>
+            <div class="value" style="font-size:18px;{{ 'color:var(--accent-green)' if monitoring else 'color:var(--accent-red)' }}">
+                {{ '🟢 运行中' if monitoring else '🔴 已停止' }}
+                {% if monitor_mode == 'bot' %}<span class="mode-badge mode-bot" style="font-size:11px;margin-left:6px">🤖 Bot</span>{% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="chart-container">
+        <h3><i class="fas fa-chart-bar" style="color:var(--accent-blue)"></i> 消息趋势 (7天)</h3>
+        <canvas id="trendChart" height="80"></canvas>
+    </div>
+    <div class="dashboard-grid">
+        <div class="card full">
+            <div class="card-title"><i class="fas fa-clock"></i> 最近活跃群组</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>群组名称</th><th>成员数</th><th>今日消息</th><th>状态</th></tr></thead>
+                    <tbody>
+                        {% for g in groups %}
+                        <tr>
+                            <td><i class="fas fa-telegram" style="color:var(--accent-blue);margin-right:6px"></i> {{ g.title or '未命名' }}{% if g.username %} <span class="text-muted">@{{ g.username }}</span>{% endif %}</td>
+                            <td>{{ g.member_count or '-' }}</td>
+                            <td>{{ g.member_count or 0 }}</td>
+                            <td><span class="tag tag-green">活跃</span></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-muted" style="text-align:center;padding:30px">暂无监控群组 — 连接 Bot 后自动发现</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== PAGE: Groups ========== -->
+<div class="page" id="page-groups">
+    <div class="page-header">
+        <h2><i class="fas fa-users" style="color:var(--accent-blue)"></i> 群组管理</h2>
+        <button class="btn btn-primary" onclick="showAddGroup()"><i class="fas fa-plus"></i> 手动添加</button>
+    </div>
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> 使用 Bot 模式时，将 Bot 添加到群组后会自动出现在列表中。你也可以手动输入群组 ID 添加。
+    </div>
+    <div class="card">
+        <div class="card-title"><i class="fas fa-list"></i> 监控中的群组</div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>ID</th><th>群组名称</th><th>用户名</th><th>成员数</th><th>添加时间</th><th>操作</th></tr></thead>
+                <tbody id="groupsTableBody">
+                    {% for g in groups %}
+                    <tr>
+                        <td class="text-muted">{{ g.group_id }}</td>
+                        <td><i class="fas fa-telegram" style="color:var(--accent-blue);margin-right:6px"></i> {{ g.title or '未命名' }}</td>
+                        <td>{% if g.username %}@{{ g.username }}{% else %}-{% endif %}</td>
+                        <td>{{ g.member_count or '-' }}</td>
+                        <td class="text-muted">{{ g.added_at[:10] if g.added_at else '-' }}</td>
+                        <td><button class="btn btn-red btn-xs" onclick="removeGroup({{ g.group_id }})"><i class="fas fa-trash"></i> 移除</button></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-muted" style="text-align:center;padding:30px">暂无群组 — 添加 Bot 到群组后自动出现</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <!-- Add Group Modal -->
+    <div class="modal-overlay" id="addGroupModal">
+        <div class="modal">
+            <h3><i class="fas fa-plus-circle"></i> 添加群组</h3>
+            <div class="form-group"><label>群组 ID</label><input type="number" id="newGroupId" placeholder="-1001234567890"></div>
+            <div class="form-group"><label>群组名称</label><input type="text" id="newGroupTitle" placeholder="群组名称"></div>
+            <div class="form-group"><label>用户名 (可选)</label><input type="text" id="newGroupUsername" placeholder="@username"></div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button class="btn btn-ghost" onclick="closeModal('addGroupModal')">取消</button>
+                <button class="btn btn-primary" onclick="addGroup()">添加</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== PAGE: Messages ========== -->
+<div class="page" id="page-messages">
+    <div class="page-header">
+        <h2><i class="fas fa-comments" style="color:var(--accent-blue)"></i> 消息监控</h2>
+        <button class="btn btn-ghost" onclick="refreshMessages()"><i class="fas fa-sync"></i> 刷新</button>
+    </div>
+    <div class="card full">
+        <div class="card-title"><i class="fas fa-stream"></i> 最近消息流</div>
+        <div class="msg-feed" id="messageFeed">
+            {% for m in recent_msgs %}
+            <div class="msg-item {{ 'feedback-highlight' if m.is_feedback }}">
+                <div class="msg-meta">
+                    <span class="msg-group"><i class="fas fa-telegram"></i> {{ m.group_title }}</span>
+                    <span class="msg-sender">{{ m.sender_name }}</span>
+                    <span>{{ m.msg_date[:19] if m.msg_date else '' }}</span>
+                    {% if m.is_feedback %}<span class="msg-feedback-badge">📩 反馈</span>{% endif %}
+                </div>
+                <div class="msg-text">{{ m.text[:200] }}{% if m.text|length > 200 %}...{% endif %}</div>
+            </div>
+            {% else %}
+            <div class="text-muted" style="text-align:center;padding:30px">暂无消息记录 — 启动监控后自动收集</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- ========== PAGE: Feedback ========== -->
+<div class="page" id="page-feedback">
+    <div class="page-header">
+        <h2><i class="fas fa-bell" style="color:var(--accent-orange)"></i> 反馈监控</h2>
+    </div>
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> 设置关键词，当群聊中出现包含这些关键词的消息时，自动通过 Bark 推送通知到你的手机。
+    </div>
+    <div class="dashboard-grid">
+        <div class="card">
+            <div class="card-title"><i class="fas fa-key"></i> 反馈关键词</div>
+            <div class="form-row">
+                <div class="form-group"><input type="text" id="newKeyword" placeholder="输入关键词，如: 反馈、求助、bug" onkeydown="if(event.key==='Enter')addKeyword()"></div>
+                <button class="btn btn-primary" onclick="addKeyword()"><i class="fas fa-plus"></i> 添加</button>
+            </div>
+            <div class="keyword-list" id="keywordList">
+                {% for kw in keywords %}
+                <span class="keyword-tag">{{ kw }}<span class="remove" onclick="removeKeyword('{{ kw }}')">&times;</span></span>
+                {% else %}
+                <span class="text-muted" style="font-size:13px">暂无关键词，添加后开始监控反馈</span>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title"><i class="fas fa-history"></i> 反馈消息记录</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>群组</th><th>发送者</th><th>内容</th><th>时间</th></tr></thead>
+                    <tbody id="feedbackTable">
+                        {% for m in recent_msgs if m.is_feedback %}
+                        <tr><td>{{ m.group_title }}</td><td>{{ m.sender_name }}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.text[:60] }}...</td><td class="text-muted">{{ m.msg_date[:19] }}</td></tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-muted" style="text-align:center;padding:20px">暂无反馈记录</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== PAGE: Reports ========== -->
+<div class="page" id="page-reports">
+    <div class="page-header">
+        <h2><i class="fas fa-file-alt" style="color:var(--accent-green)"></i> 日报汇总</h2>
+        <div class="btn-group">
+            <button class="btn btn-green" onclick="generateAllReports()"><i class="fas fa-sync"></i> 生成日报</button>
+            <button class="btn btn-primary" onclick="generateReportImages()"><i class="fas fa-image"></i> 生成图片</button>
+            <button class="btn btn-ghost" onclick="showCronSetup()"><i class="fas fa-clock"></i> 定时任务</button>
+        </div>
+    </div>
+
+    <div class="alert alert-success">
+        <i class="fas fa-check-circle"></i> 每日 <strong>22:00</strong> 自动汇总当日群聊讨论并生成精美图片报告。可手动生成或设置定时任务。
+    </div>
+
+    <!-- Generated Images -->
+    <div class="card" id="reportImagesCard" style="display:none">
+        <div class="card-title"><i class="fas fa-images"></i> 生成的报告图片</div>
+        <div id="reportImagesContainer" style="display:flex;gap:16px;flex-wrap:wrap"></div>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="card full">
+            <div class="card-title"><i class="fas fa-list-alt"></i> 群聊日报列表</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>日期</th><th>群组</th><th>消息数</th><th>活跃用户</th><th>反馈数</th><th>摘要</th></tr></thead>
+                    <tbody id="reportsTable">
+                        {% for r in reports %}
+                        <tr>
+                            <td>{{ r.report_date }}</td>
+                            <td>{{ r.group_title }}</td>
+                            <td><span class="tag tag-blue">{{ r.msg_count }}</span></td>
+                            <td><span class="tag tag-green">{{ r.active_users }}</span></td>
+                            <td><span class="tag tag-orange">{{ r.feedback_count }}</span></td>
+                            <td class="text-muted" style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.summary[:60] }}...</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-muted" style="text-align:center;padding:30px">暂无日报数据 — 有消息后自动生成</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cron Setup Modal -->
+    <div class="modal-overlay" id="cronModal">
+        <div class="modal">
+            <h3><i class="fas fa-clock"></i> 设置每日22:00定时日报</h3>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> 使用 Hermes 的 cron 功能自动在每天 22:00 生成日报图片。
+            </div>
+            <div id="cronSetupContent">
+                <p style="margin-bottom:12px;font-size:14px;color:var(--text-secondary)">正在获取设置命令...</p>
+            </div>
+            <div style="margin-top:16px;text-align:right">
+                <button class="btn btn-primary" onclick="setupCronJob()"><i class="fas fa-clock"></i> 创建设置任务</button>
+                <button class="btn btn-ghost" onclick="closeModal('cronModal')">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== PAGE: Telegram ========== -->
+<div class="page" id="page-telegram">
+    <div class="page-header">
+        <h2><i class="fab fa-telegram" style="color:var(--accent-blue)"></i> Telegram 连接</h2>
+    </div>
+
+    <div class="tab-bar">
+        <button class="tab-btn active" data-tab="bot" onclick="switchTab('bot')">🤖 Bot 模式（推荐）</button>
+        <button class="tab-btn" data-tab="telethon" onclick="switchTab('telethon')">📱 用户账号模式</button>
+    </div>
+
+    <!-- ── Tab: Bot Mode ── -->
+    <div class="tab-content active" id="tab-bot">
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle"></i> <strong>推荐方案</strong> — 在 @BotFather 创建 Bot，获取 Token，填入下方即可。安全、简单、稳定。
+        </div>
+
+        <div class="card">
+            <div class="card-title"><i class="fas fa-info-circle"></i> 设置步骤</div>
+            <ol class="setup-steps">
+                <li>在 Telegram 中打开 <strong>@BotFather</strong>，发送 <code>/newbot</code> 创建新 Bot</li>
+                <li>记下 BotFather 给你的 <strong>HTTP Token</strong>（格式: <code>123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11</code>）</li>
+                <li>将 Bot <strong>添加到群组</strong>并设置为管理员（至少需要消息读取权限）</li>
+                <li>在 @BotFather 中运行 <code>/setprivacy</code> → 选择你的 Bot → <strong>Disable</strong>（关闭隐私模式以读取所有消息）</li>
+                <li>将下方 Token 填入 → 点击「启动」</li>
+            </ol>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><i class="fas fa-key"></i> Bot Token</div>
+            <form id="botForm" onsubmit="return startBot(event)">
+                <div class="form-group">
+                    <label>Bot Token（从 @BotFather 获取）</label>
+                    <input type="password" name="token" id="botTokenInput" value="{{ bot_token if bot_token and bot_token != '****' else '' }}" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
+                </div>
+                <div class="btn-group" style="margin-top:8px">
+                    <button type="submit" class="btn btn-primary" id="botStartBtn">
+                        <i class="fas fa-play"></i> {{ '重新连接' if monitoring and monitor_mode == 'bot' else '🤖 启动 Bot 监控' }}
+                    </button>
+                    <button type="button" class="btn btn-red" onclick="stopBot()" id="botStopBtn" {{ 'disabled' if not (monitoring and monitor_mode == 'bot') }}>
+                        <i class="fas fa-stop"></i> 停止 Bot
+                    </button>
+                </div>
+            </form>
+            <div id="botStatus" style="margin-top:12px;font-size:13px"></div>
+
+            {% if monitoring and monitor_mode == 'bot' %}
+            <div class="alert alert-success" style="margin-top:12px">
+                <i class="fas fa-check-circle"></i> Bot 正在运行！将 Bot 添加到群组后，消息会自动出现在消息流中。
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ── Tab: Telethon Mode ── -->
+    <div class="tab-content" id="tab-telethon">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 使用个人 Telegram 账号连接。需要 API ID 和 API Hash，请在 <a href="https://my.telegram.org/apps" target="_blank" style="color:var(--accent-blue)">my.telegram.org</a> 获取。首次连接需要输入验证码。
+        </div>
+
+        <div class="card">
+            <div class="card-title"><i class="fas fa-plug"></i> 用户账号连接</div>
+            <form id="telethonForm" onsubmit="return startTelethon(event)">
+                <div class="form-group"><label>API ID</label><input type="number" name="api_id" value="{{ api_id }}" placeholder="例如: 123456" required></div>
+                <div class="form-group"><label>API Hash</label><input type="password" name="api_hash" value="{{ api_hash if api_hash and api_hash != '****' else '' }}" placeholder="你的 API Hash" required></div>
+                <div class="form-group"><label>手机号（带国家码）</label><input type="tel" name="phone" value="{{ phone }}" placeholder="+8613800138000" required></div>
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-primary" id="telethonStartBtn">
+                        <i class="fas fa-play"></i> {{ '重新连接' if monitoring and monitor_mode == 'telethon' else '📱 启动 Telethon' }}
+                    </button>
+                    <button type="button" class="btn btn-red" onclick="stopTelethon()" id="telethonStopBtn" {{ 'disabled' if not (monitoring and monitor_mode == 'telethon') }}>
+                        <i class="fas fa-stop"></i> 停止
+                    </button>
+                </div>
+            </form>
+            <div id="telethonStatus" style="margin-top:12px;font-size:13px"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><i class="fas fa-search"></i> 快速操作</div>
+            <div class="btn-group">
+                <button class="btn btn-ghost" onclick="scanDialogs()"><i class="fas fa-search"></i> 扫描可用群组</button>
+                <button class="btn btn-ghost" onclick="location.reload()"><i class="fas fa-sync"></i> 刷新状态</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== PAGE: Bark ========== -->
+<div class="page" id="page-bark">
+    <div class="page-header">
+        <h2><i class="fas fa-bolt" style="color:var(--accent-orange)"></i> Bark 通知设置</h2>
+    </div>
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> Bark 是一款 iOS 推送通知工具。在 App Store 下载 Bark，复制你的推送密钥粘贴到下方。
+        <a href="https://bark.day.app" target="_blank" style="color:var(--accent-blue)">了解更多</a>
+    </div>
+    <div class="card" style="max-width:500px">
+        <div class="card-title"><i class="fas fa-key"></i> Bark 配置</div>
+        <div class="form-group">
+            <label>Bark 密钥</label>
+            <input type="text" id="barkKeyInput" value="{{ bark_key }}" placeholder="https://api.day.app/你的密钥 或 仅密钥部分">
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="saveBarkKey()"><i class="fas fa-save"></i> 保存</button>
+            <button class="btn btn-green" onclick="testBark()"><i class="fas fa-paper-plane"></i> 测试通知</button>
+        </div>
+    </div>
+    <div class="card" style="max-width:500px">
+        <div class="card-title"><i class="fas fa-info-circle"></i> 通知说明</div>
+        <table>
+            <tr><td style="width:120px">📩 反馈通知</td><td class="text-muted">群聊中出现匹配关键词的消息 → 即时推送（时效性通知）</td></tr>
+            <tr><td>📊 日报通知</td><td class="text-muted">每日群聊汇总报告推送到 Bark</td></tr>
+            <tr><td>🔔 测试通知</td><td class="text-muted">点击「测试通知」验证推送是否正常工作</td></tr>
+            <tr><td>🔑 Bark 密钥</td><td class="text-muted">Bark App 中显示的完整 URL 中的密钥部分</td></tr>
+        </table>
+    </div>
+</div>
+
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ─── Chart ───
+const trendCtx = document.getElementById('trendChart').getContext('2d');
+const reportDates = {{ report_dates|safe }};
+const msgCounts = {{ msg_counts|safe }};
+const fbCounts = {{ fb_counts|safe }};
+
+new Chart(trendCtx, {
+    type: 'bar',
+    data: {
+        labels: reportDates.length ? reportDates : ['暂无数据'],
+        datasets: [{
+            label: '消息数',
+            data: msgCounts.length ? msgCounts : [0],
+            backgroundColor: 'rgba(91,141,239,0.6)',
+            borderColor: 'rgba(91,141,239,1)',
+            borderWidth: 1,
+            borderRadius: 4,
+        }, {
+            label: '反馈数',
+            data: fbCounts.length ? fbCounts : [0],
+            backgroundColor: 'rgba(255,149,0,0.6)',
+            borderColor: 'rgba(255,149,0,1)',
+            borderWidth: 1,
+            borderRadius: 4,
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#8b8fa3', font: { size: 12 } } } },
+        scales: {
+            x: { ticks: { color: '#5c6080' }, grid: { color: 'rgba(45,49,84,0.3)' } },
+            y: { beginAtZero: true, ticks: { color: '#5c6080' }, grid: { color: 'rgba(45,49,84,0.3)' } }
+        }
+    }
+});
+
+// ─── Page Switching ───
+function switchPage(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById(`page-${page}`).classList.add('active');
+    document.querySelector(`.nav-item[data-page="${page}"]`).classList.add('active');
+    document.querySelector('.sidebar').classList.remove('open');
+}
+
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector(`.tab-btn[data-tab="${tab}"]`).classList.add('active');
+    document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+// ─── Toast ───
+function toast(msg, type='success') {
+    const c = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    t.className = `toast toast-${type}`;
+    t.textContent = msg;
+    c.appendChild(t);
+    setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(() => t.remove(),300); }, 3000);
+}
+
+async function api(method, path, body=null) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) opts.body = JSON.stringify(body);
+    try {
+        const resp = await fetch(path, opts);
+        return await resp.json();
+    } catch(e) { toast(`请求失败: ${e.message}`, 'error'); return null; }
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function showAddGroup() { document.getElementById('addGroupModal').classList.add('show'); }
+
+// ─── Groups ───
+async function addGroup() {
+    const gid = parseInt(document.getElementById('newGroupId').value);
+    const title = document.getElementById('newGroupTitle').value;
+    const username = document.getElementById('newGroupUsername').value;
+    if (!gid) { toast('请输入群组 ID', 'error'); return; }
+    const r = await api('POST', '/api/groups/add', { group_id: gid, title, username });
+    if (r && r.ok) { toast('群组添加成功'); closeModal('addGroupModal'); setTimeout(()=>location.reload(),800); }
+}
+
+async function removeGroup(gid) {
+    if (!confirm('确定要移除群组吗？')) return;
+    const r = await api('POST', '/api/groups/remove', { group_id: gid });
+    if (r && r.ok) { toast('群组已移除'); setTimeout(()=>location.reload(),800); }
+}
+
+// ─── Messages ───
+async function refreshMessages() {
+    const r = await api('GET', '/api/messages?limit=30');
+    if (!r || !r.messages) return;
+    const feed = document.getElementById('messageFeed');
+    feed.innerHTML = r.messages.map(m => `
+        <div class="msg-item ${m.is_feedback ? 'feedback-highlight' : ''}">
+            <div class="msg-meta">
+                <span class="msg-group"><i class="fas fa-telegram"></i> ${m.group_title||'未知'}</span>
+                <span class="msg-sender">${m.sender_name}</span>
+                <span>${m.msg_date ? m.msg_date.slice(0,19) : ''}</span>
+                ${m.is_feedback ? '<span class="msg-feedback-badge">📩 反馈</span>' : ''}
+            </div>
+            <div class="msg-text">${(m.text||'').slice(0,200)}</div>
+        </div>
+    `).join('');
+    toast('消息流已刷新', 'info');
+}
+
+// ─── Keywords ───
+async function addKeyword() {
+    const input = document.getElementById('newKeyword');
+    const kw = input.value.trim();
+    if (!kw) { toast('请输入关键词', 'error'); return; }
+    const r = await api('POST', '/api/keywords/add', { keyword: kw });
+    if (r && r.ok) { toast(`关键词 "${kw}" 已添加`); input.value=''; setTimeout(()=>location.reload(),500); }
+}
+async function removeKeyword(kw) {
+    const r = await api('POST', '/api/keywords/remove', { keyword: kw });
+    if (r && r.ok) { toast(`关键词 "${kw}" 已移除`); setTimeout(()=>location.reload(),500); }
+}
+
+// ─── Reports ───
+async function generateAllReports() {
+    const gr = await api('GET', '/api/groups');
+    if (!gr || !gr.groups) return;
+    let c = 0;
+    for (const g of gr.groups) {
+        const r = await api('POST', '/api/reports/generate', { group_id: g.group_id });
+        if (r && r.ok) c++;
+    }
+    toast(`已生成 ${c} 个群组日报`);
+    setTimeout(()=>location.reload(),800);
+}
+
+// ─── Report Images ───
+async function generateReportImages() {
+    toast('正在生成报告图片...', 'info');
+    const r = await api('POST', '/api/reports/generate-image');
+    if (!r) return;
+    if (r.ok) {
+        toast(`✅ 已生成 ${r.count || 1} 张报告图片`);
+        // Show images
+        const container = document.getElementById('reportImagesContainer');
+        const card = document.getElementById('reportImagesCard');
+        card.style.display = 'block';
+        container.innerHTML = '';
+        const images = r.images || (r.filename ? [r.filename] : []);
+        if (r.url) {
+            // Single image
+            container.innerHTML = `<div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow:hidden;max-width:400px">
+                <img src="${r.url}" style="width:100%;display:block" alt="Report">
+                <div style="padding:8px;text-align:center;font-size:12px;color:var(--text-muted)">
+                    <a href="${r.url}" target="_blank" style="color:var(--accent-blue)">查看大图</a>
+                </div>
+            </div>`;
+        }
+        for (const f of images) {
+            const imgUrl = `/report_images/${f}`;
+            const div = document.createElement('div');
+            div.style.cssText = 'border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow:hidden;max-width:380px';
+            div.innerHTML = `<img src="${imgUrl}?t=${Date.now()}" style="width:100%;display:block" alt="Report">
+                <div style="padding:8px;text-align:center;font-size:12px;color:var(--text-muted)">
+                    <i class="fas fa-download"></i> <a href="${imgUrl}" target="_blank" style="color:var(--accent-blue)">查看大图 / 保存</a>
+                </div>`;
+            container.appendChild(div);
+        }
+        // Show existing images too
+        listReportImages();
+    } else {
+        toast(`生成失败: ${r.error}`, 'error');
+    }
+}
+
+async function listReportImages() {
+    const r = await api('GET', '/api/reports/images');
+    if (!r || !r.images || !r.images.length) return;
+    const container = document.getElementById('reportImagesContainer');
+    const card = document.getElementById('reportImagesCard');
+    card.style.display = 'block';
+    for (const img of r.images) {
+        // Check if already shown
+        if (container.querySelector(`img[src*="${img.filename}"]`)) continue;
+        const div = document.createElement('div');
+        div.style.cssText = 'border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow:hidden;max-width:380px';
+        div.innerHTML = `<img src="${img.url}?t=${Date.now()}" style="width:100%;display:block" alt="Report">
+            <div style="padding:8px;text-align:center;font-size:12px;color:var(--text-muted)">
+                ${img.created} · ${img.size_kb}KB<br>
+                <a href="${img.url}" target="_blank" style="color:var(--accent-blue)">查看大图</a>
+            </div>`;
+        container.appendChild(div);
+    }
+}
+
+// ─── Cron Setup ───
+async function showCronSetup() {
+    document.getElementById('cronModal').classList.add('show');
+    const content = document.getElementById('cronSetupContent');
+    content.innerHTML = '<p style="color:var(--text-secondary)">正在获取设置信息...</p>';
+    const r = await api('POST', '/api/reports/daily-cron');
+    if (r && r.ok) {
+        content.innerHTML = `<pre style="background:var(--bg-input);padding:16px;border-radius:var(--radius-sm);font-size:13px;line-height:1.6;overflow-x:auto;white-space:pre-wrap;color:var(--text-primary)">${r.setup.replace(/\n/g,'<br>')}</pre>`;
+    } else {
+        content.innerHTML = '<p class="text-muted">获取失败</p>';
+    }
+}
+
+async function setupCronJob() {
+    toast('在 Hermes 终端中执行以下命令创建设置 cron 任务...', 'info');
+    const r = await api('POST', '/api/reports/daily-cron');
+    if (r && r.ok) {
+        document.getElementById('cronSetupContent').innerHTML = `
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i> 复制以下命令到 Hermes 终端执行：
+            </div>
+            <pre style="background:var(--bg-input);padding:16px;border-radius:var(--radius-sm);font-size:13px;line-height:1.6;overflow-x:auto;white-space:pre-wrap;color:var(--accent-green);user-select:all">${r.setup.split('\n')[1]}</pre>
+            <p style="margin-top:12px;font-size:13px;color:var(--text-secondary)">执行后，每天 22:00 会自动生成日报图片并发送到你当前的对话中。</p>
+        `;
+    }
+}
+
+// ─── Bot Mode ───
+async function startBot(event) {
+    event.preventDefault();
+    const token = document.getElementById('botTokenInput').value.trim();
+    if (!token) { toast('请输入 Bot Token', 'error'); return; }
+
+    const btn = document.getElementById('botStartBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 连接中...';
+
+    const r = await api('POST', '/api/monitor/bot/start', { token });
+    if (r && r.ok) {
+        toast('🤖 Bot 监控已启动！');
+        setTimeout(()=>location.reload(),1000);
+    } else {
+        toast(`启动失败: ${r?.error||'未知错误'}`, 'error');
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> 🤖 启动 Bot 监控';
+    }
+}
+
+async function stopBot() {
+    if (!confirm('确定停止 Bot 监控吗？')) return;
+    const r = await api('POST', '/api/monitor/bot/stop');
+    if (r && r.ok) { toast('Bot 已停止'); setTimeout(()=>location.reload(),800); }
+}
+
+// ─── Telethon Mode ───
+async function startTelethon(event) {
+    event.preventDefault();
+    const fd = new FormData(event.target);
+    const api_id = parseInt(fd.get('api_id'));
+    const api_hash = fd.get('api_hash');
+    const phone = fd.get('phone');
+    if (!api_id || !api_hash || !phone) { toast('请填写所有字段', 'error'); return; }
+
+    const btn = document.getElementById('telethonStartBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 连接中...';
+
+    const r = await api('POST', '/api/monitor/telethon/start', { api_id, api_hash, phone });
+    if (r && r.ok) {
+        toast('📱 Telethon 监控已启动！');
+        setTimeout(()=>location.reload(),1000);
+    } else {
+        toast(`启动失败: ${r?.error||'未知错误'}`, 'error');
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> 📱 启动 Telethon';
+    }
+}
+
+async function stopTelethon() {
+    if (!confirm('确定停止 Telethon 监控吗？')) return;
+    const r = await api('POST', '/api/monitor/telethon/stop');
+    if (r && r.ok) { toast('Telethon 已停止'); setTimeout(()=>location.reload(),800); }
+}
+
+async function scanDialogs() {
+    const r = await api('GET', '/api/monitor/telethon/dialogs');
+    if (!r || !r.dialogs) { toast('扫描失败，请先连接 Telegram', 'error'); return; }
+    let html = '';
+    for (const d of r.dialogs) {
+        html += `<div style="padding:10px;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
+            <div><i class="fas fa-telegram" style="color:var(--accent-blue);margin-right:8px"></i> <strong>${d.title}</strong> <span class="text-muted">(ID: ${d.id})</span></div>
+            <div><span class="tag tag-blue">${d.members} 成员</span>
+            <button class="btn btn-primary btn-xs" onclick="quickAddGroup(${d.id},'${d.title}')" style="margin-left:8px">添加</button></div>
+        </div>`;
+    }
+    document.getElementById('dialogsList').innerHTML = html || '<div class="text-muted" style="padding:20px;text-align:center">无可用群组</div>';
+    document.getElementById('dialogsModal').classList.add('show');
+}
+
+async function quickAddGroup(id, title) {
+    const r = await api('POST', '/api/groups/add', { group_id: id, title });
+    if (r && r.ok) toast(`已添加群组: ${title}`);
+}
+
+// ─── Bark ───
+async function saveBarkKey() {
+    let key = document.getElementById('barkKeyInput').value.trim();
+    if (key.includes('api.day.app/')) key = key.split('api.day.app/')[1].split('?')[0].split('/')[0];
+    const r = await api('POST', '/api/config', { key: 'bark_key', value: key });
+    if (r && r.ok) toast('Bark 密钥已保存');
+}
+async function testBark() {
+    const r = await api('POST', '/api/bark/test');
+    if (r && r.ok) toast('测试通知已发送，请查看手机');
+    else toast('发送失败，请检查密钥', 'error');
+}
+
+// ─── Auto Refresh ───
+setInterval(async () => {
+    const r = await api('GET', '/api/stats');
+    if (!r || !r.stats) return;
+    const s = r.stats;
+    document.getElementById('statGroups').textContent = s.total_groups;
+    document.getElementById('statTodayMsgs').textContent = s.today_msgs;
+    document.getElementById('statActiveGroups').textContent = s.active_groups;
+    document.getElementById('statFeedback').textContent = s.today_feedback;
+    document.getElementById('statTotalMsgs').textContent = s.total_msgs;
+    document.getElementById('refreshTime').textContent = new Date().toLocaleString('zh-CN');
+}, 10000);
+
+// ─── Modal overlay close ───
+document.querySelectorAll('.modal-overlay').forEach(el => {
+    el.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+});
+</script>
+</body>
+</html>
