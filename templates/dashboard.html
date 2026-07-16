@@ -1157,19 +1157,30 @@
 
     <!-- AI Settings -->
     <div class="card">
-        <div class="card-title"><i class="fas fa-cog"></i> DeepSeek AI 配置</div>
-        <div class="alert alert-success"><i class="fas fa-info-circle"></i> 开启后，Bot 在群聊中 @ 或回复 Bot 时，会自动调用 DeepSeek AI 回复。</div>
-        <div class="form-row" style="align-items:center">
-            <div style="display:flex;align-items:center;gap:10px;flex:1">
+        <div class="card-title"><i class="fas fa-cog"></i> AI 模型配置</div>
+        <div class="alert alert-success"><i class="fas fa-info-circle"></i> 支持任何 OpenAI 兼容接口（DeepSeek、小米、OpenAI 等）。开启后 @Bot 或回复 Bot 时自动调用 AI 回复。</div>
+        <div class="form-row" style="align-items:center;flex-wrap:wrap;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px">
                 <label style="font-size:13px;color:var(--text2);cursor:pointer">
                     <input type="checkbox" id="aiChatToggle" onchange="toggleAIChat()" style="width:18px;height:18px;accent-color:var(--blue);vertical-align:middle;margin-right:6px">
-                    启用 AI 聊天
+                    启用
                 </label>
             </div>
-            <div class="form-group" style="flex:2;margin-bottom:0">
-                <input type="password" id="deepseekKey" placeholder="sk-xxxxxxxxxxx (DeepSeek API Key)" style="font-size:13px">
+            <div class="form-group" style="flex:2;min-width:200px;margin-bottom:0">
+                <input type="password" id="deepseekKey" placeholder="API Key" style="font-size:13px">
             </div>
-            <button class="btn btn-primary btn-sm" onclick="saveAIKey()"><i class="fas fa-save"></i> 保存 Key</button>
+            <button class="btn btn-primary btn-sm" onclick="saveAIKey()">保存 Key</button>
+        </div>
+        <div class="form-row" style="margin-top:8px;gap:8px">
+            <div class="form-group" style="flex:1;margin-bottom:0">
+                <label style="font-size:11px;color:var(--text3)">接口地址</label>
+                <input type="text" id="aiApiUrl" value="https://api.deepseek.com/v1" style="font-size:12px" placeholder="https://api.deepseek.com/v1">
+            </div>
+            <div class="form-group" style="flex:1;margin-bottom:0">
+                <label style="font-size:11px;color:var(--text3)">模型名称</label>
+                <input type="text" id="aiModel" value="deepseek-chat" style="font-size:12px" placeholder="deepseek-chat">
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="saveAIConfig()" style="align-self:flex-end">保存设置</button>
         </div>
         <div style="margin-top:12px">
             <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:6px">选择启用了 AI 的群组（@Bot 或回复 Bot 自动触发）:</label>
@@ -1564,14 +1575,24 @@ async function toggleAIChat() {
 
 async function saveAIKey() {
     const key = document.getElementById('deepseekKey').value.trim();
-    if (!key) { toast('请输入 DeepSeek API Key', 'error'); return; }
+    if (!key) { toast('请输入 API Key', 'error'); return; }
     await api('POST', '/api/config', { key: 'deepseek_key', value: key });
-    toast('DeepSeek API Key 已保存 ✅');
+    toast('API Key 已保存 ✅');
+}
+
+async function saveAIConfig() {
+    const url = document.getElementById('aiApiUrl').value.trim();
+    const model = document.getElementById('aiModel').value.trim();
+    if (url) await api('POST', '/api/config', { key: 'ai_api_url', value: url });
+    if (model) await api('POST', '/api/config', { key: 'ai_model', value: model });
+    toast('AI 配置已保存 ✅');
 }
 
 async function loadAIConfig() {
     const r = await api('GET', '/api/config?key=ai_chat_enabled');
     const keyR = await api('GET', '/api/config?key=deepseek_key');
+    const urlR = await api('GET', '/api/config?key=ai_api_url');
+    const modelR = await api('GET', '/api/config?key=ai_model');
     const groupsR = await api('GET', '/api/config?key=ai_chat_groups');
     const toggle = document.getElementById('aiChatToggle');
     if (r && toggle) toggle.checked = r.value === 'true';
@@ -1579,6 +1600,10 @@ async function loadAIConfig() {
     if (keyR && keyInput && keyR.value && keyR.value.length > 4) {
         keyInput.placeholder = '已配置 (点击修改)';
     }
+    const urlInput = document.getElementById('aiApiUrl');
+    if (urlR && urlInput && urlR.value) urlInput.value = urlR.value;
+    const modelInput = document.getElementById('aiModel');
+    if (modelR && modelInput && modelR.value) modelInput.value = modelR.value;
     const groupsEl = document.getElementById('aiChatGroups');
     if (groupsR && groupsEl) {
         const groups = await api('GET', '/api/groups');

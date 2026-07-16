@@ -243,8 +243,10 @@ async def _handle_message(update: Update, context: CallbackContext):
             # Show typing indicator
             await _bot_app.bot.send_chat_action(chat_id=group_id, action="typing")
 
-            from ai_chat import ask_deepseek
-            reply = await ask_deepseek(api_key=ai_key, message=clean_text)
+            from ai_chat import ask_ai
+            api_url = await get_config("ai_api_url", "https://api.deepseek.com/v1")
+            ai_model = await get_config("ai_model", "deepseek-chat")
+            reply = await ask_ai(api_key=ai_key, api_url=api_url, model=ai_model, message=clean_text)
 
             if reply:
                 sent = await message.reply_text(reply, disable_web_page_preview=True)
