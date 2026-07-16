@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TG Monitor - 群聊管理监控面板</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         /* ─── Design Tokens ─── */
         :root {
@@ -1358,7 +1358,7 @@ async function showChangePassword() {
     else toast('更新失败', 'error');
 }
 
-// ─── Auto Refresh ───
+// ─── Auto Refresh ─── (30s interval to reduce CPU)
 setInterval(async () => {
     const r = await api('GET', '/api/stats');
     if (!r || !r.stats) return;
@@ -1368,7 +1368,7 @@ setInterval(async () => {
     document.getElementById('statFeedback').textContent = r.stats.today_feedback;
     document.getElementById('statTotalMsgs').textContent = r.stats.total_msgs;
     document.getElementById('refreshTime').textContent = new Date().toLocaleString('zh-CN');
-}, 10000);
+}, 30000);
 
 // ─── Modal overlay close ───
 document.querySelectorAll('.modal-overlay').forEach(el => {
