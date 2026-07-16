@@ -1215,7 +1215,16 @@
         <div class="form-row" style="margin-top:8px;gap:8px">
             <div class="form-group" style="flex:1;margin-bottom:0">
                 <label style="font-size:11px;color:var(--text3)">接口地址</label>
-                <input type="text" id="aiApiUrl" value="https://api.deepseek.com/v1" style="font-size:12px" placeholder="https://api.deepseek.com/v1">
+                <div style="display:flex;gap:6px">
+                    <select id="aiApiPreset" onchange="applyApiPreset()" style="font-size:12px;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);width:140px">
+                        <option value="">选择预设...</option>
+                        <option value="https://api.deepseek.com/v1">DeepSeek</option>
+                        <option value="https://api.minimax.chat/v1">小米(MiniMax)</option>
+                        <option value="https://api.openai.com/v1">OpenAI</option>
+                        <option value="__custom__">自定义</option>
+                    </select>
+                    <input type="text" id="aiApiUrl" value="https://api.deepseek.com/v1" style="flex:1;font-size:12px" placeholder="https://api.deepseek.com/v1">
+                </div>
             </div>
             <div class="form-group" style="flex:1;margin-bottom:0">
                 <label style="font-size:11px;color:var(--text3)">模型名称</label>
@@ -1646,6 +1655,14 @@ async function saveAIConfig() {
     if (url) await fetchModels();
 }
 
+function applyApiPreset() {
+    const sel = document.getElementById('aiApiPreset');
+    const input = document.getElementById('aiApiUrl');
+    if (sel.value && sel.value !== '__custom__') {
+        input.value = sel.value;
+    }
+}
+
 async function testAIConnection() {
     const el = document.getElementById('aiTestResult');
     el.innerHTML = '⏳ 测试中...';
@@ -1671,7 +1688,15 @@ async function loadAIConfig() {
         keyInput.placeholder = '已配置 (点击修改)';
     }
     const urlInput = document.getElementById('aiApiUrl');
-    if (urlInput && vals.ai_api_url) urlInput.value = vals.ai_api_url;
+    if (urlInput && vals.ai_api_url) {
+        urlInput.value = vals.ai_api_url;
+        // Sync preset dropdown
+        const preset = document.getElementById('aiApiPreset');
+        if (preset) {
+            const matched = Array.from(preset.options).find(o => o.value === vals.ai_api_url);
+            preset.value = matched ? matched.value : '__custom__';
+        }
+    }
     const modelSelect = document.getElementById('aiModelSelect');
     if (modelSelect && vals.ai_model) {
         // 如果有已保存的模型，先加到下拉并选中
