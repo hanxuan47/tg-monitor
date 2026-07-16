@@ -1,23 +1,26 @@
-version: '3.8'
+networks:
+    1panel-network:
+        external: true
 
 services:
-  tg-monitor:
-    build: .
-    container_name: tg-monitor
-    ports:
-      - "8080:8080"
-    volumes:
-      # Persist database, session files, and report images
-      - tg-monitor-data:/app/data
-    restart: unless-stopped
-    environment:
-      - TZ=Asia/Shanghai
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/')"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-
-volumes:
-  tg-monitor-data:
+    tg-monitor:
+        container_name: ${CONTAINER_NAME}
+        build:
+            context: .
+        deploy:
+            resources:
+                limits:
+                    cpus: ${CPUS}
+                    memory: ${MEMORY_LIMIT}
+        environment:
+            - TZ=Asia/Shanghai
+        labels:
+            createdBy: Apps
+        networks:
+            - 1panel-network
+        ports:
+            - ${HOST_IP}:${PANEL_APP_PORT_HTTP}:8080
+        restart: always
+        user: "0:0"
+        volumes:
+            - ./data:/app/data
