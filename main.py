@@ -170,6 +170,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="TG Monitor Dashboard", lifespan=lifespan)
 
 # Templates + static
+os.makedirs("data/report_images", exist_ok=True)
 templates = Jinja2Templates(directory="templates")
 app.mount("/report_images", StaticFiles(directory="data/report_images"), name="report_images")
 
