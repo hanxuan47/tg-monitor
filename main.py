@@ -210,12 +210,14 @@ async def api_logout():
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    # Auth check
+    # Auth check — always redirect to login page, which handles setup or auth
     password = await get_config("panel_password", "")
-    if password:
-        session = request.cookies.get("session")
-        if session != "authenticated":
-            return RedirectResponse(url="/login")
+    session = request.cookies.get("session")
+    if password and session != "authenticated":
+        return RedirectResponse(url="/login")
+    if not password:
+        # No password set — redirect to setup page
+        return RedirectResponse(url="/login")
     stats = await get_overview_stats()
     groups = await get_groups()
     reports = await get_reports(days=7)

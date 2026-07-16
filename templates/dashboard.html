@@ -1285,7 +1285,7 @@ async function startBot(event) {
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 连接中...';
     const r = await api('POST', '/api/monitor/bot/start', { token });
     if (r && r.ok) { toast('🤖 Bot 已启动！'); setTimeout(()=>location.reload(),1000); }
-    else { toast(`启动失败: ${r?.error||'???}`, 'error'); btn.disabled=false; btn.innerHTML='<i class="fas fa-play"></i> 🤖 启动 Bot'; }
+    else { toast(`启动失败: ${r?.error||'???'}`, 'error'); btn.disabled=false; btn.innerHTML='<i class="fas fa-play"></i> 🤖 启动 Bot'; }
 }
 async function stopBot() {
     if (!confirm('停止 Bot？')) return;
@@ -1302,7 +1302,7 @@ async function startTelethon(event) {
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 连接中...';
     const r = await api('POST', '/api/monitor/telethon/start', { api_id, api_hash, phone });
     if (r && r.ok) { toast('📱 Telethon 已启动！'); setTimeout(()=>location.reload(),1000); }
-    else { toast(`启动失败: ${r?.error||'???}`, 'error'); btn.disabled=false; btn.innerHTML='<i class="fas fa-play"></i> 📱 启动'; }
+    else { toast(`启动失败: ${r?.error||'???'}`, 'error'); btn.disabled=false; btn.innerHTML='<i class="fas fa-play"></i> 📱 启动'; }
 }
 async function stopTelethon() {
     if (!confirm('停止 Telethon？')) return;
