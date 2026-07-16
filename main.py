@@ -171,7 +171,6 @@ app = FastAPI(title="TG Monitor Dashboard", lifespan=lifespan)
 
 # Templates + static
 templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/report_images", StaticFiles(directory="data/report_images"), name="report_images")
 
 # ─── Exception handler for redirect ──────────────────────────
