@@ -3,6 +3,7 @@ TG Monitor - AI Chat Module
 OpenAI-compatible API integration (DeepSeek, Xiaomi, OpenAI, etc.)
 """
 import logging
+from typing import Optional
 
 import httpx
 
