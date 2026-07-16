@@ -3,7 +3,6 @@ TG Monitor - Database Layer (Optimized)
 SQLite async database with indexes and optimized queries.
 """
 import aiosqlite
-import json
 import os
 from datetime import datetime, timedelta
 from typing import Optional

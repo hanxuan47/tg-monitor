@@ -3,7 +3,6 @@ TG Monitor - Telegram Client Module
 Uses Telethon to connect to Telegram and monitor groups for messages and feedback.
 """
 import asyncio
-import re
 import logging
 from datetime import datetime
 from typing import Callable, Optional

@@ -174,7 +174,6 @@ monitor = MonitorManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    os.makedirs("data/report_images", exist_ok=True)
     logger.info("Database initialized")
     yield
     await monitor.stop()
@@ -412,7 +411,6 @@ async def api_generate_report(data: GroupAdd, _ = Depends(require_auth)):
 async def api_generate_report_image(data: ReportImageRequest = ReportImageRequest(), _ = Depends(require_auth)):
     """Generate a report image for a specific group or all groups."""
     try:
-        os.makedirs("data/report_images", exist_ok=True)
         today = datetime.now().strftime("%Y-%m-%d")
         ts = datetime.now().strftime("%H%M%S")
 
@@ -477,7 +475,6 @@ async def api_generate_report_image(data: ReportImageRequest = ReportImageReques
 @app.get("/api/reports/images")
 async def api_list_report_images(_ = Depends(require_auth)):
     """List all generated report images."""
-    os.makedirs("data/report_images", exist_ok=True)
     images = sorted(os.listdir("data/report_images"), reverse=True)[:30]
     result = []
     for img in images:

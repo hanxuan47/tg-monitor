@@ -222,7 +222,7 @@ async def _handle_message(update: Update, context: CallbackContext):
 
         # Fire Bark notification
         if _on_feedback:
-            _on_feedback({
+            await _on_feedback({
                 "group_id": group_id,
                 "group_title": group_title,
                 "sender_id": sender_id,

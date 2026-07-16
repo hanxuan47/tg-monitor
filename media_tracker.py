@@ -3,7 +3,7 @@ TG Monitor - Media Tracker Module
 Tracks new movie/TV show releases via TMDB API and sends notifications to groups.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 import httpx
