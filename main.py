@@ -51,6 +51,10 @@ class ReportImageRequest(BaseModel):
 class KeywordAdd(BaseModel):
     keyword: str
 
+class AutoReplyConfig(BaseModel):
+    enabled: bool = True
+    message: str = "✅ 已收到您的反馈，管理员会尽快处理。"
+
 class BotStart(BaseModel):
     token: str
 
@@ -435,6 +439,18 @@ async def api_set_password(data: ConfigUpdate):
     if len(data.value) < 4:
         return {"ok": False, "error": "密码至少4位"}
     await set_config("panel_password", data.value)
+    return {"ok": True}
+
+@app.get("/api/auto-reply")
+async def api_get_auto_reply():
+    """Get auto-reply config."""
+    msg = await get_config("auto_reply", "✅ 已收到您的反馈，管理员会尽快处理。")
+    return {"message": msg}
+
+@app.post("/api/auto-reply")
+async def api_set_auto_reply(data: ConfigUpdate):
+    """Set auto-reply message."""
+    await set_config("auto_reply", data.value)
     return {"ok": True}
 
 @app.get("/api/config")

@@ -909,8 +909,8 @@
     <div class="page-header">
         <h2><i class="fas fa-bell" style="color:var(--accent-orange)"></i> 反馈监控</h2>
     </div>
-    <div class="alert alert-info"><i class="fas fa-info-circle"></i> 设置关键词，群聊中出现匹配消息时自动通过 Bark 推送通知到你的手机。</div>
-    <div class="dashboard-grid">
+    <div class="alert alert-info"><i class="fas fa-info-circle"></i> 设置关键词，群聊中出现匹配消息时自动通过 Bark 推送通知到你的手机，同时 Bot 会在群内自动回复。</div>
+    <div class="dashboard-grid" style="grid-template-columns: 1fr 1fr">
         <div class="card">
             <div class="card-title"><i class="fas fa-key"></i> 反馈关键词</div>
             <div class="form-row">
@@ -940,6 +940,18 @@
                 </table>
             </div>
         </div>
+    </div>
+    <div class="card" style="max-width:600px">
+        <div class="card-title"><i class="fas fa-reply"></i> 自动回复设置</div>
+        <div class="alert alert-success" style="margin-bottom:12px">
+            <i class="fas fa-check-circle"></i> 当群聊中出现关键词时，Bot 会自动回复以下内容：
+        </div>
+        <div class="form-group">
+            <label>自动回复消息</label>
+            <input type="text" id="autoReplyInput" value="✅ 已收到您的反馈，管理员会尽快处理。" placeholder="Bot 自动回复的内容">
+        </div>
+        <button class="btn btn-primary" onclick="saveAutoReply()"><i class="fas fa-save"></i> 保存回复</button>
+        <div id="autoReplyStatus" style="margin-top:8px;font-size:12px;color:var(--text-muted)"></div>
     </div>
 </div>
 
@@ -1345,6 +1357,25 @@ async function testBark() {
     if (r && r.ok) toast('测试通知已发送');
     else toast('发送失败，请检查密钥', 'error');
 }
+
+// ─── Auto Reply ───
+async function saveAutoReply() {
+    const msg = document.getElementById('autoReplyInput').value.trim();
+    if (!msg) { toast('请输入回复内容', 'error'); return; }
+    const r = await api('POST', '/api/auto-reply', { key: 'auto_reply', value: msg });
+    if (r && r.ok) {
+        toast('自动回复已保存 ✅');
+        document.getElementById('autoReplyStatus').textContent = '已保存: ' + msg;
+    } else { toast('保存失败', 'error'); }
+}
+// Load auto-reply on page load
+(async function() {
+    const r = await api('GET', '/api/auto-reply');
+    if (r && r.message) {
+        const el = document.getElementById('autoReplyInput');
+        if (el) el.value = r.message;
+    }
+})();
 
 // ─── Auth ───
 async function logout() {

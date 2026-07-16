@@ -23,7 +23,7 @@ from telegram.ext import (
 )
 
 from database import (
-    add_group, get_groups, save_message, get_feedback_keywords,
+    add_group, get_groups, save_message, get_feedback_keywords, get_config,
 )
 
 logger = logging.getLogger("tg-monitor.bot")
@@ -184,16 +184,27 @@ async def _handle_message(update: Update, context: CallbackContext):
     await add_group(group_id, group_title, username, member_count=0)
 
     # Fire feedback callback (→ Bark notification)
-    if is_feedback and _on_feedback:
-        _on_feedback({
-            "group_id": group_id,
-            "group_title": group_title,
-            "sender_id": sender_id,
-            "sender_name": sender_name,
-            "text": text,
-            "matched_keyword": matched_keyword,
-            "timestamp": msg_date.isoformat(),
-        })
+    if is_feedback:
+        # Bot auto-reply in group
+        try:
+            reply_text = await get_config("auto_reply", "✅ 已收到您的反馈，管理员会尽快处理。")
+            if reply_text:
+                await message.reply_text(reply_text)
+                logger.info("🤖 Auto-replied to feedback in %s", group_title)
+        except Exception as e:
+            logger.warning("Auto-reply failed: %s", e)
+
+        # Fire Bark notification
+        if _on_feedback:
+            _on_feedback({
+                "group_id": group_id,
+                "group_title": group_title,
+                "sender_id": sender_id,
+                "sender_name": sender_name,
+                "text": text,
+                "matched_keyword": matched_keyword,
+                "timestamp": msg_date.isoformat(),
+            })
 
 
 async def _error_handler(update: Optional[Update], context: CallbackContext):
