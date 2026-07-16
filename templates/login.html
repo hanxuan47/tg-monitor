@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TG Monitor - 登录</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg-primary: #0f1117;
+            --bg-card: #1e2038;
+            --border: #2d3154;
+            --text: #e8eaf0;
+            --text-muted: #5c6080;
+            --accent: #5b8def;
+            --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 48px 40px;
+            width: 380px;
+            max-width: 90vw;
+            text-align: center;
+        }
+        .login-box .logo {
+            font-size: 42px;
+            margin-bottom: 12px;
+        }
+        .login-box h1 { font-size: 20px; margin-bottom: 6px; }
+        .login-box p { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+        .login-box .form-group { margin-bottom: 16px; text-align: left; }
+        .login-box label { font-size: 13px; color: var(--text-muted); display: block; margin-bottom: 6px; }
+        .login-box input {
+            width: 100%;
+            padding: 12px 16px;
+            background: #252849;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 15px;
+            outline: none;
+            transition: border .2s;
+        }
+        .login-box input:focus { border-color: var(--accent); }
+        .login-box button {
+            width: 100%;
+            padding: 12px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity .2s;
+        }
+        .login-box button:hover { opacity: .85; }
+        .login-box button:disabled { opacity: .4; cursor: not-allowed; }
+        .error-msg {
+            color: #ff4757;
+            font-size: 13px;
+            margin-top: 12px;
+            display: none;
+        }
+        .setup-banner {
+            background: rgba(91,141,239,.12);
+            border: 1px solid rgba(91,141,239,.25);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            text-align: left;
+            line-height: 1.6;
+        }
+        .setup-banner i { color: var(--accent); margin-right: 6px; }
+        .setup-input { display: none; }
+        .setup-input.show { display: block; }
+    </style>
+</head>
+<body>
+
+<div class="login-box">
+    <div class="logo">📊</div>
+    <h1>TG Monitor</h1>
+    <p>Telegram 群聊管理监控面板</p>
+
+    {% if not has_password %}
+    <!-- First-time setup -->
+    <div class="setup-banner">
+        <i class="fas fa-info-circle"></i> 首次使用，请设置面板登录密码。
+    </div>
+    <div class="form-group">
+        <label>设置登录密码</label>
+        <input type="password" id="newPassword" placeholder="至少4位密码" minlength="4" autofocus>
+    </div>
+    <div class="form-group">
+        <label>确认密码</label>
+        <input type="password" id="confirmPassword" placeholder="再次输入密码">
+    </div>
+    <button id="setupBtn" onclick="setupPassword()">设置密码并登录</button>
+    <div class="error-msg" id="errorMsg"></div>
+
+    {% else %}
+    <!-- Normal login -->
+    <div class="form-group">
+        <label>面板密码</label>
+        <input type="password" id="password" placeholder="输入密码" autofocus onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button id="loginBtn" onclick="doLogin()">登录</button>
+    <div class="error-msg" id="errorMsg"></div>
+    {% endif %}
+</div>
+
+<script>
+async function doLogin() {
+    const pwd = document.getElementById('password').value;
+    const btn = document.getElementById('loginBtn');
+    const err = document.getElementById('errorMsg');
+    if (!pwd) { err.textContent = '请输入密码'; err.style.display = 'block'; return; }
+    btn.disabled = true; btn.textContent = '登录中...';
+    try {
+        const resp = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pwd })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            document.cookie = "session=authenticated; path=/; max-age=86400";
+            window.location.href = '/';
+        } else {
+            err.textContent = data.error || '密码错误';
+            err.style.display = 'block';
+            btn.disabled = false; btn.textContent = '登录';
+        }
+    } catch(e) {
+        err.textContent = '请求失败: ' + e.message;
+        err.style.display = 'block';
+        btn.disabled = false; btn.textContent = '登录';
+    }
+}
+
+async function setupPassword() {
+    const pwd = document.getElementById('newPassword').value;
+    const confirm = document.getElementById('confirmPassword').value;
+    const btn = document.getElementById('setupBtn');
+    const err = document.getElementById('errorMsg');
+    if (!pwd || pwd.length < 4) { err.textContent = '密码至少4位'; err.style.display = 'block'; return; }
+    if (pwd !== confirm) { err.textContent = '两次密码不一致'; err.style.display = 'block'; return; }
+    btn.disabled = true; btn.textContent = '设置中...';
+    try {
+        const resp = await fetch('/api/set-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: 'panel_password', value: pwd })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            document.cookie = "session=authenticated; path=/; max-age=86400";
+            window.location.href = '/';
+        } else {
+            err.textContent = data.error || '设置失败';
+            err.style.display = 'block';
+            btn.disabled = false; btn.textContent = '设置密码并登录';
+        }
+    } catch(e) {
+        err.textContent = '请求失败: ' + e.message;
+        err.style.display = 'block';
+        btn.disabled = false; btn.textContent = '设置密码并登录';
+    }
+}
+</script>
+</body>
+</html>

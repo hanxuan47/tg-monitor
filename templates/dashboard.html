@@ -483,7 +483,7 @@
         </a>
     </nav>
     <div class="sidebar-footer">
-        <div>
+        <div style="margin-bottom:8px">
             <span class="status-dot {{ 'online' if monitoring else 'offline' }}" id="statusDot"></span>
             <span id="statusText" style="font-size:13px">
                 {{ '🟢 运行中' if monitoring else '🔴 已停止' }}
@@ -491,6 +491,12 @@
                 {% if monitor_mode == 'telethon' %}<span class="mode-badge mode-telethon">📱 Telethon</span>{% endif %}
             </span>
         </div>
+        {% if has_password %}
+        <div style="display:flex;gap:6px;border-top:1px solid var(--border-color);padding-top:8px">
+            <span style="font-size:11px;color:var(--text-muted);cursor:pointer" onclick="showChangePassword()"><i class="fas fa-key"></i> 密码</span>
+            <span style="font-size:11px;color:var(--text-muted);cursor:pointer;margin-left:auto" onclick="logout()"><i class="fas fa-sign-out-alt"></i> 退出</span>
+        </div>
+        {% endif %}
     </div>
 </aside>
 
@@ -1151,6 +1157,23 @@ async function testBark() {
     const r = await api('POST', '/api/bark/test');
     if (r && r.ok) toast('测试通知已发送，请查看手机');
     else toast('发送失败，请检查密钥', 'error');
+}
+
+// ─── Auth ───
+async function logout() {
+    if (!confirm('确定退出登录吗？')) return;
+    await api('GET', '/api/logout');
+    document.cookie = "session=; path=/; max-age=0";
+    window.location.href = '/login';
+}
+
+async function showChangePassword() {
+    const pwd = prompt('请输入新密码（至少4位）:');
+    if (!pwd || pwd.length < 4) { toast('密码至少4位', 'error'); return; }
+    const confirm = prompt('再次输入新密码:');
+    if (pwd !== confirm) { toast('两次密码不一致', 'error'); return; }
+    const r = await api('POST', '/api/set-password', { key: 'panel_password', value: pwd });
+    if (r && r.ok) { toast('密码已更新'); } else { toast('更新失败', 'error'); }
 }
 
 // ─── Auto Refresh ───

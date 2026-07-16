@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -58,6 +58,25 @@ class TelethonStart(BaseModel):
     api_id: int
     api_hash: str
     phone: str
+
+class LoginData(BaseModel):
+    password: str
+
+# ─── Auth middleware ────────────────────────────────────────────
+
+async def check_auth(request: Request):
+    """Check if user is logged in."""
+    password = await get_config("panel_password", "")
+    if not password:
+        return True  # No password set = open access
+    token = request.cookies.get("session")
+    return token == "authenticated"
+
+async def require_auth(request: Request):
+    if not await check_auth(request):
+        return None
+    return True
+
 
 # ─── Feedback handler ───────────────────────────────────────────
 
@@ -155,10 +174,48 @@ templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/report_images", StaticFiles(directory="data/report_images"), name="report_images")
 
+# ─── Exception handler for redirect ──────────────────────────
+
+@app.exception_handler(HTTPException)
+async def auth_redirect_handler(request, exc):
+    if exc.status_code == 303:
+        return RedirectResponse(url="/login")
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
 # ─── Web Routes ─────────────────────────────────────────────────
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Render login page."""
+    password = await get_config("panel_password", "")
+    return templates.TemplateResponse(request, "login.html", {
+        "has_password": bool(password),
+    })
+
+@app.post("/api/login")
+async def api_login(data: LoginData):
+    """Verify password and set session cookie."""
+    password = await get_config("panel_password", "")
+    if not password:
+        return {"ok": True}  # No password set = always OK
+    if data.password == password:
+        return {"ok": True}
+    return {"ok": False, "error": "密码错误"}
+
+@app.get("/api/logout")
+async def api_logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie("session")
+    return resp
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
+    # Auth check
+    password = await get_config("panel_password", "")
+    if password:
+        session = request.cookies.get("session")
+        if session != "authenticated":
+            return RedirectResponse(url="/login")
     stats = await get_overview_stats()
     groups = await get_groups()
     reports = await get_reports(days=7)
@@ -204,6 +261,7 @@ async def dashboard(request: Request):
         "active_users": json.dumps(active_users),
         "recent_msgs": recent_msgs,
         "now": datetime.now().strftime("%H:%M:%S"),
+        "has_password": bool(password),
     })
 
 
@@ -367,6 +425,14 @@ async def api_remove_keyword(data: KeywordAdd):
 @app.post("/api/config")
 async def api_update_config(data: ConfigUpdate):
     await set_config(data.key, data.value)
+    return {"ok": True}
+
+@app.post("/api/set-password")
+async def api_set_password(data: ConfigUpdate):
+    """Set or change panel login password."""
+    if len(data.value) < 4:
+        return {"ok": False, "error": "密码至少4位"}
+    await set_config("panel_password", data.value)
     return {"ok": True}
 
 @app.get("/api/config")
