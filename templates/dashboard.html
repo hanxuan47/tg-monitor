@@ -7,27 +7,34 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
+        /* ─── Design Tokens ─── */
         :root {
-            --bg-primary: #0f1117;
-            --bg-secondary: #1a1d2e;
-            --bg-card: #1e2038;
-            --bg-card-hover: #252849;
-            --bg-input: #252849;
-            --border-color: #2d3154;
-            --text-primary: #e8eaf0;
-            --text-secondary: #8b8fa3;
-            --text-muted: #5c6080;
+            --bg-primary: #0b0d17;
+            --bg-secondary: #12142a;
+            --bg-card: #191d3a;
+            --bg-card-hover: #20244d;
+            --bg-input: #1e2248;
+            --border-color: #282d5a;
+            --border-glow: rgba(91, 141, 239, 0.15);
+            --text-primary: #eef0f7;
+            --text-secondary: #9498b8;
+            --text-muted: #5c6085;
             --accent-blue: #5b8def;
+            --accent-blue-glow: rgba(91, 141, 239, 0.25);
             --accent-green: #4cd964;
             --accent-orange: #ff9500;
             --accent-red: #ff4757;
             --accent-purple: #a855f7;
             --accent-cyan: #22d3ee;
-            --shadow: 0 4px 24px rgba(0,0,0,0.3);
-            --radius: 12px;
-            --radius-sm: 8px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+            --radius: 14px;
+            --radius-sm: 10px;
+            --radius-xs: 6px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
             background: var(--bg-primary);
@@ -35,87 +42,157 @@
             min-height: 100vh;
             display: flex;
         }
+
+        /* ─── Scrollbar ─── */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* ─── Sidebar ─── */
         .sidebar {
-            width: 260px;
-            background: var(--bg-secondary);
+            width: 250px;
+            background: linear-gradient(180deg, var(--bg-secondary) 0%, #0f1130 100%);
             border-right: 1px solid var(--border-color);
-            padding: 20px 0;
+            padding: 0;
             display: flex;
             flex-direction: column;
             position: fixed;
             top: 0; left: 0; bottom: 0;
             z-index: 100;
-            transition: transform .3s;
+            transition: transform var(--transition);
         }
         .sidebar-header {
-            padding: 0 20px 24px;
+            padding: 24px 20px 20px;
             border-bottom: 1px solid var(--border-color);
+            background: rgba(255,255,255,0.02);
         }
         .sidebar-header h1 {
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 700;
             display: flex;
             align-items: center;
             gap: 10px;
+            letter-spacing: -0.3px;
         }
-        .sidebar-header h1 i { color: var(--accent-blue); font-size: 22px; }
+        .sidebar-header h1 i { 
+            width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--accent-blue-glow);
+            border-radius: var(--radius-xs);
+            color: var(--accent-blue);
+            font-size: 16px;
+        }
         .sidebar-header .badge {
-            font-size: 10px;
-            background: var(--accent-blue);
+            font-size: 9px;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
             color: #fff;
-            padding: 2px 8px;
+            padding: 2px 7px;
             border-radius: 20px;
             margin-left: 4px;
+            letter-spacing: 0.3px;
         }
-        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+        .sidebar-nav { flex: 1; padding: 12px 10px; overflow-y: auto; }
+        .nav-section {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            padding: 16px 14px 6px;
+            letter-spacing: 1.2px;
+        }
         .nav-item {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 11px 16px;
+            padding: 10px 14px;
             border-radius: var(--radius-sm);
             color: var(--text-secondary);
             text-decoration: none;
-            font-size: 14px;
+            font-size: 13.5px;
             cursor: pointer;
-            transition: all .2s;
+            transition: all var(--transition);
             margin-bottom: 2px;
+            position: relative;
         }
-        .nav-item:hover { background: var(--bg-card); color: var(--text-primary); }
-        .nav-item.active { background: var(--accent-blue); color: #fff; }
-        .nav-item i { width: 18px; text-align: center; font-size: 15px; }
-        .nav-section { font-size: 11px; text-transform: uppercase; color: var(--text-muted); padding: 16px 16px 8px; letter-spacing: 1px; }
+        .nav-item:hover {
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+        .nav-item.active {
+            background: linear-gradient(135deg, var(--accent-blue-glow), transparent);
+            color: var(--accent-blue);
+            font-weight: 500;
+        }
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 8px; bottom: 8px;
+            width: 3px;
+            background: var(--accent-blue);
+            border-radius: 0 3px 3px 0;
+        }
+        .nav-item i { width: 20px; text-align: center; font-size: 14px; }
         .sidebar-footer {
-            padding: 16px 20px;
+            padding: 14px 20px;
             border-top: 1px solid var(--border-color);
+            background: rgba(255,255,255,0.02);
         }
         .status-dot {
             display: inline-block;
-            width: 8px; height: 8px;
+            width: 7px; height: 7px;
             border-radius: 50%;
             margin-right: 8px;
+            position: relative;
         }
-        .status-dot.online { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
+        .status-dot.online { background: var(--accent-green); box-shadow: 0 0 10px var(--accent-green); }
+        .status-dot.online::after {
+            content: ''; position: absolute;
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
         .status-dot.offline { background: var(--accent-red); }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.6; }
+            50% { transform: scale(2); opacity: 0; }
+            100% { transform: scale(1); opacity: 0.6; }
+        }
+
+        /* ─── Main Layout ─── */
         .main {
             flex: 1;
-            margin-left: 260px;
-            padding: 24px 32px;
-            max-width: calc(100vw - 260px);
+            margin-left: 250px;
+            padding: 28px 36px;
+            max-width: calc(100vw - 250px);
+            min-height: 100vh;
         }
-        .page { display: none; }
+        .page { display: none; animation: fadeIn 0.3s ease; }
         .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
         .page-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 24px;
+            margin-bottom: 28px;
         }
-        .page-header h2 { font-size: 22px; font-weight: 600; }
+        .page-header h2 {
+            font-size: 22px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .page-header h2 i { font-size: 20px; }
+
+        /* ─── Stats Cards ─── */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
             margin-bottom: 28px;
         }
         .stat-card {
@@ -123,39 +200,83 @@
             border: 1px solid var(--border-color);
             border-radius: var(--radius);
             padding: 20px;
-            transition: transform .2s;
+            position: relative;
+            overflow: hidden;
+            transition: all var(--transition);
         }
-        .stat-card:hover { transform: translateY(-2px); }
+        .stat-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(91, 141, 239, 0.3);
+            box-shadow: 0 8px 32px rgba(91, 141, 239, 0.08);
+        }
+        .stat-card .glow {
+            position: absolute;
+            top: -50%; right: -50%;
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            opacity: 0.04;
+            pointer-events: none;
+        }
+        .stat-card .icon {
+            width: 38px; height: 38px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: var(--radius-xs);
+            margin-bottom: 14px;
+            font-size: 16px;
+        }
+        .stat-card .icon.blue { background: rgba(91,141,239,.15); color: var(--accent-blue); }
+        .stat-card .icon.green { background: rgba(76,217,100,.15); color: var(--accent-green); }
+        .stat-card .icon.orange { background: rgba(255,149,0,.15); color: var(--accent-orange); }
+        .stat-card .icon.red { background: rgba(255,71,87,.15); color: var(--accent-red); }
+        .stat-card .icon.purple { background: rgba(168,85,247,.15); color: var(--accent-purple); }
         .stat-card .label {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: .5px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
-        .stat-card .value { font-size: 28px; font-weight: 700; }
-        .stat-card .icon { float: right; font-size: 24px; opacity: .3; }
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .stat-card .value.green { color: var(--accent-green); }
+        .stat-card .value.blue { color: var(--accent-blue); }
+        .stat-card .value.orange { color: var(--accent-orange); }
+        .stat-card .value.red { color: var(--accent-red); }
+
+        /* ─── Chart ─── */
         .chart-container {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: var(--radius);
-            padding: 20px;
+            padding: 24px;
             margin-bottom: 24px;
         }
         .chart-container h3 {
-            font-size: 15px;
-            margin-bottom: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
             color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
+        .chart-container h3 i { color: var(--accent-blue); }
+
+        /* ─── Cards ─── */
         .card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: var(--radius);
-            padding: 20px;
+            padding: 22px;
             margin-bottom: 20px;
+            transition: border-color var(--transition);
         }
+        .card:hover { border-color: var(--border-glow); }
         .card-title {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 600;
             margin-bottom: 16px;
             display: flex;
@@ -163,53 +284,65 @@
             gap: 8px;
         }
         .card-title i { color: var(--accent-blue); }
+
         .dashboard-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
         }
         .dashboard-grid .full { grid-column: 1 / -1; }
-        @media (max-width: 800px) { .dashboard-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } }
+
+        /* ─── Tables ─── */
         .table-wrap { overflow-x: auto; }
         table {
             width: 100%;
             border-collapse: collapse;
             font-size: 13px;
         }
-        th {
+        thead th {
             text-align: left;
-            padding: 10px 12px;
+            padding: 12px 14px;
             color: var(--text-muted);
             font-weight: 500;
-            border-bottom: 1px solid var(--border-color);
-            font-size: 12px;
+            font-size: 11px;
             text-transform: uppercase;
             letter-spacing: .5px;
-        }
-        td {
-            padding: 10px 12px;
             border-bottom: 1px solid var(--border-color);
         }
-        tr:last-child td { border-bottom: none; }
+        tbody td {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(45, 49, 84, 0.4);
+            transition: background var(--transition);
+        }
+        tbody tr:hover td { background: var(--bg-card-hover); }
+        tbody tr:last-child td { border-bottom: none; }
         .text-muted { color: var(--text-secondary); font-size: 12px; }
+        .text-muted-2 { color: var(--text-muted); font-size: 11px; }
         .tag {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
             padding: 2px 10px;
             border-radius: 20px;
             font-size: 11px;
             font-weight: 500;
+            gap: 4px;
         }
-        .tag-blue { background: rgba(91,141,239,.15); color: var(--accent-blue); }
-        .tag-green { background: rgba(76,217,100,.15); color: var(--accent-green); }
-        .tag-orange { background: rgba(255,149,0,.15); color: var(--accent-orange); }
-        .tag-red { background: rgba(255,71,87,.15); color: var(--accent-red); }
-        .tag-purple { background: rgba(168,85,247,.15); color: var(--accent-purple); }
+        .tag-blue { background: rgba(91,141,239,.12); color: var(--accent-blue); }
+        .tag-green { background: rgba(76,217,100,.12); color: var(--accent-green); }
+        .tag-orange { background: rgba(255,149,0,.12); color: var(--accent-orange); }
+        .tag-red { background: rgba(255,71,87,.12); color: var(--accent-red); }
+        .tag-purple { background: rgba(168,85,247,.12); color: var(--accent-purple); }
+        .tag-cyan { background: rgba(34,211,238,.12); color: var(--accent-cyan); }
+
+        /* ─── Forms ─── */
         .form-group { margin-bottom: 14px; }
         .form-group label {
             display: block;
-            font-size: 13px;
+            font-size: 12px;
             color: var(--text-secondary);
             margin-bottom: 6px;
+            font-weight: 500;
         }
         .form-row { display: flex; gap: 12px; align-items: flex-end; }
         .form-row .form-group { flex: 1; }
@@ -222,106 +355,141 @@
             color: var(--text-primary);
             font-size: 14px;
             outline: none;
-            transition: border .2s;
+            transition: all var(--transition);
         }
-        input:focus { border-color: var(--accent-blue); }
-        input::placeholder { color: var(--text-muted); }
+        input:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px var(--accent-blue-glow);
+        }
+        input::placeholder { color: var(--text-muted); font-size: 13px; }
+
         .btn {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
-            padding: 9px 18px;
+            padding: 9px 20px;
             border-radius: var(--radius-sm);
             border: none;
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
-            transition: all .2s;
+            transition: all var(--transition);
             text-decoration: none;
+            white-space: nowrap;
         }
-        .btn-primary { background: var(--accent-blue); color: #fff; }
-        .btn-primary:hover { background: #4a7de0; }
-        .btn-green { background: var(--accent-green); color: #000; }
-        .btn-green:hover { opacity: .85; }
-        .btn-red { background: var(--accent-red); color: #fff; }
-        .btn-red:hover { opacity: .85; }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-blue), #4a7de0);
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(91,141,239,0.25);
+        }
+        .btn-primary:hover { box-shadow: 0 6px 20px rgba(91,141,239,0.35); transform: translateY(-1px); }
+        .btn-green { background: linear-gradient(135deg, var(--accent-green), #3bc951); color: #000; }
+        .btn-green:hover { box-shadow: 0 4px 14px rgba(76,217,100,0.3); transform: translateY(-1px); }
+        .btn-red { background: linear-gradient(135deg, var(--accent-red), #e04050); color: #fff; }
+        .btn-red:hover { box-shadow: 0 4px 14px rgba(255,71,87,0.3); transform: translateY(-1px); }
         .btn-ghost {
             background: transparent;
             border: 1px solid var(--border-color);
             color: var(--text-secondary);
         }
-        .btn-ghost:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
-        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .btn-ghost:hover { border-color: var(--accent-blue); color: var(--accent-blue); background: var(--accent-blue-glow); }
+        .btn-sm { padding: 6px 14px; font-size: 12px; }
         .btn-xs { padding: 4px 10px; font-size: 11px; }
         .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
-        .btn:disabled { opacity: .4; cursor: not-allowed; }
+        .btn:disabled { opacity: .4; cursor: not-allowed; transform: none !important; }
+
+        /* ─── Alerts ─── */
         .alert {
-            padding: 12px 16px;
+            padding: 12px 18px;
             border-radius: var(--radius-sm);
             font-size: 13px;
             margin-bottom: 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            line-height: 1.6;
         }
-        .alert-info { background: rgba(91,141,239,.1); border: 1px solid rgba(91,141,239,.2); color: var(--accent-blue); }
-        .alert-success { background: rgba(76,217,100,.1); border: 1px solid rgba(76,217,100,.2); color: var(--accent-green); }
-        .alert-danger { background: rgba(255,71,87,.1); border: 1px solid rgba(255,71,87,.2); color: var(--accent-red); }
-        .msg-feed { max-height: 500px; overflow-y: auto; }
+        .alert i { margin-top: 2px; font-size: 14px; }
+        .alert-info { background: rgba(91,141,239,.08); border: 1px solid rgba(91,141,239,.15); color: var(--accent-blue); }
+        .alert-success { background: rgba(76,217,100,.08); border: 1px solid rgba(76,217,100,.15); color: var(--accent-green); }
+        .alert-danger { background: rgba(255,71,87,.08); border: 1px solid rgba(255,71,87,.15); color: var(--accent-red); }
+
+        /* ─── Message Feed ─── */
+        .msg-feed { max-height: 520px; overflow-y: auto; }
         .msg-item {
-            padding: 12px;
-            border-bottom: 1px solid var(--border-color);
-            transition: background .2s;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(45, 49, 84, 0.3);
+            transition: all var(--transition);
+            border-radius: var(--radius-xs);
+            margin: 2px 0;
         }
         .msg-item:hover { background: var(--bg-card-hover); }
         .msg-item:last-child { border-bottom: none; }
-        .msg-item.feedback-highlight { border-left: 3px solid var(--accent-orange); }
+        .msg-item.feedback-highlight {
+            border-left: 3px solid var(--accent-orange);
+            background: rgba(255,149,0,0.04);
+        }
         .msg-meta {
             display: flex;
-            gap: 12px;
+            gap: 14px;
             font-size: 12px;
             color: var(--text-muted);
-            margin-bottom: 4px;
+            margin-bottom: 5px;
             flex-wrap: wrap;
+            align-items: center;
         }
-        .msg-group { color: var(--accent-blue); }
-        .msg-sender { font-weight: 500; color: var(--accent-cyan); }
-        .msg-text { font-size: 13px; line-height: 1.5; word-break: break-all; }
+        .msg-group { color: var(--accent-blue); font-weight: 500; }
+        .msg-sender { font-weight: 600; color: var(--accent-cyan); }
+        .msg-text { font-size: 13px; line-height: 1.6; word-break: break-word; }
         .msg-feedback-badge {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
             font-size: 10px;
+            font-weight: 600;
             background: var(--accent-orange);
             color: #000;
-            padding: 1px 6px;
+            padding: 1px 8px;
             border-radius: 10px;
-            margin-left: 6px;
         }
+
+        /* ─── Keywords ─── */
         .keyword-list {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
-            margin: 12px 0;
+            margin: 14px 0;
         }
         .keyword-tag {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 5px 12px;
-            background: rgba(91,141,239,.12);
-            border: 1px solid rgba(91,141,239,.25);
+            padding: 5px 14px;
+            background: rgba(91,141,239,.1);
+            border: 1px solid rgba(91,141,239,.2);
             border-radius: 20px;
             font-size: 13px;
+            transition: all var(--transition);
         }
+        .keyword-tag:hover { border-color: rgba(91,141,239,.4); }
         .keyword-tag .remove {
             cursor: pointer;
             color: var(--accent-red);
-            font-size: 14px;
-            opacity: .6;
-            transition: opacity .2s;
+            font-size: 15px;
+            opacity: .5;
+            transition: opacity var(--transition);
         }
         .keyword-tag .remove:hover { opacity: 1; }
+
+        /* ─── Modal ─── */
         .modal-overlay {
             display: none;
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,.6);
+            background: rgba(0,0,0,0.65);
+            backdrop-filter: blur(4px);
             z-index: 200;
             align-items: center;
             justify-content: center;
@@ -336,28 +504,47 @@
             max-width: 90vw;
             max-height: 80vh;
             overflow-y: auto;
+            box-shadow: var(--shadow);
+            animation: modalIn 0.25s ease;
         }
-        .modal h3 { margin-bottom: 20px; font-size: 18px; }
+        @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .modal h3 { 
+            margin-bottom: 20px; 
+            font-size: 17px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .modal h3 i { color: var(--accent-blue); }
+
+        /* ─── Toast ─── */
         .toast-container {
             position: fixed;
             top: 20px;
             right: 20px;
-            z-index: 300;
+            z-index: 999;
             display: flex;
             flex-direction: column;
             gap: 8px;
+            pointer-events: none;
         }
         .toast {
             padding: 12px 20px;
             border-radius: var(--radius-sm);
             font-size: 13px;
-            animation: slideIn .3s ease;
-            min-width: 240px;
+            font-weight: 500;
+            pointer-events: auto;
+            animation: toastIn 0.3s ease;
+            min-width: 200px;
+            max-width: 360px;
+            box-shadow: var(--shadow);
         }
         .toast-success { background: var(--accent-green); color: #000; }
         .toast-error { background: var(--accent-red); color: #fff; }
         .toast-info { background: var(--accent-blue); color: #fff; }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* ─── Tabs ─── */
         .tab-bar {
             display: flex;
             gap: 0;
@@ -365,14 +552,16 @@
             margin-bottom: 20px;
         }
         .tab-btn {
-            padding: 10px 20px;
+            padding: 12px 22px;
             font-size: 13px;
+            font-weight: 500;
             background: transparent;
             border: none;
             border-bottom: 2px solid transparent;
             color: var(--text-muted);
             cursor: pointer;
-            transition: all .2s;
+            transition: all var(--transition);
+            margin-bottom: -1px;
         }
         .tab-btn.active {
             color: var(--accent-blue);
@@ -380,18 +569,20 @@
         }
         .tab-btn:hover { color: var(--text-primary); }
         .tab-content { display: none; }
-        .tab-content.active { display: block; }
+        .tab-content.active { display: block; animation: fadeIn 0.25s ease; }
+
+        /* ─── Misc ─── */
         .mode-badge {
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            padding: 3px 10px;
+            padding: 2px 8px;
             border-radius: 20px;
-            font-size: 11px;
-            font-weight: 500;
+            font-size: 10px;
+            font-weight: 600;
         }
-        .mode-bot { background: rgba(168,85,247,.15); color: var(--accent-purple); }
-        .mode-telethon { background: rgba(34,211,238,.15); color: var(--accent-cyan); }
+        .mode-bot { background: rgba(168,85,247,.12); color: var(--accent-purple); }
+        .mode-telethon { background: rgba(34,211,238,.12); color: var(--accent-cyan); }
         .setup-steps {
             counter-reset: step;
             padding: 0;
@@ -403,6 +594,7 @@
             position: relative;
             font-size: 14px;
             color: var(--text-secondary);
+            line-height: 1.5;
         }
         .setup-steps li::before {
             content: counter(step);
@@ -412,7 +604,7 @@
             width: 24px;
             height: 24px;
             border-radius: 50%;
-            background: var(--accent-blue);
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
             color: #fff;
             display: flex;
             align-items: center;
@@ -421,26 +613,77 @@
             font-weight: 600;
         }
         .setup-steps li strong { color: var(--text-primary); }
-        .info-grid {
-            display: grid;
-            grid-template-columns: auto 1fr;
-            gap: 8px 16px;
-            font-size: 13px;
+        .setup-steps li code {
+            background: var(--bg-input);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: var(--accent-cyan);
         }
-        .info-grid .label { color: var(--text-muted); }
-        .info-grid .value { color: var(--text-primary); }
-        @media (max-width: 900px) {
-            .sidebar { transform: translateX(-100%); }
+
+        pre {
+            background: var(--bg-input);
+            padding: 16px;
+            border-radius: var(--radius-sm);
+            font-size: 12.5px;
+            line-height: 1.7;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--accent-green);
+            border: 1px solid var(--border-color);
+        }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 1024px) {
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); width: 260px; }
             .sidebar.open { transform: translateX(0); }
-            .main { margin-left: 0; max-width: 100vw; padding: 16px; }
-            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .main { margin-left: 0; max-width: 100vw; padding: 16px; padding-top: 56px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .stat-card { padding: 16px; }
+            .stat-card .value { font-size: 22px; }
+            .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .msg-meta { gap: 8px; font-size: 11px; }
         }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
-        .mobile-toggle { display: none; position: fixed; top: 16px; left: 16px; z-index: 101; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px 14px; color: var(--text-primary); font-size: 18px; cursor: pointer; }
-        @media (max-width: 900px) { .mobile-toggle { display: block; } }
+        .mobile-toggle {
+            display: none;
+            position: fixed;
+            top: 12px; left: 12px;
+            z-index: 101;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            color: var(--text-primary);
+            font-size: 18px;
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .mobile-toggle:hover { border-color: var(--accent-blue); }
+        @media (max-width: 768px) { .mobile-toggle { display: block; } }
+
+        /* ─── Image preview ─── */
+        .report-img {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            max-width: 380px;
+            transition: all var(--transition);
+        }
+        .report-img:hover { border-color: var(--accent-blue); transform: translateY(-2px); box-shadow: var(--shadow); }
+        .report-img img { width: 100%; display: block; }
+        .report-img .caption {
+            padding: 10px;
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-muted);
+            background: rgba(0,0,0,0.2);
+        }
+        .report-img .caption a { color: var(--accent-blue); text-decoration: none; }
+        .report-img .caption a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -454,7 +697,7 @@
     <div class="sidebar-header">
         <h1>
             <i class="fas fa-robot"></i> TG Monitor
-            <span class="badge">v2.0</span>
+            <span class="badge">v2</span>
         </h1>
     </div>
     <nav class="sidebar-nav">
@@ -476,7 +719,7 @@
         </a>
         <div class="nav-section">设置</div>
         <a class="nav-item" data-page="telegram" onclick="switchPage('telegram')">
-            <i class="fab fa-telegram"></i> Telegram 连接
+            <i class="fab fa-telegram"></i> Telegram
         </a>
         <a class="nav-item" data-page="bark" onclick="switchPage('bark')">
             <i class="fas fa-bolt"></i> Bark 通知
@@ -485,16 +728,16 @@
     <div class="sidebar-footer">
         <div style="margin-bottom:8px">
             <span class="status-dot {{ 'online' if monitoring else 'offline' }}" id="statusDot"></span>
-            <span id="statusText" style="font-size:13px">
-                {{ '🟢 运行中' if monitoring else '🔴 已停止' }}
-                {% if monitor_mode == 'bot' %}<span class="mode-badge mode-bot">🤖 Bot</span>{% endif %}
-                {% if monitor_mode == 'telethon' %}<span class="mode-badge mode-telethon">📱 Telethon</span>{% endif %}
+            <span id="statusText" style="font-size:12px;font-weight:500">
+                {{ '监控运行中' if monitoring else '监控已停止' }}
+                {% if monitor_mode == 'bot' %}<span class="mode-badge mode-bot" style="margin-left:4px">🤖 Bot</span>{% endif %}
+                {% if monitor_mode == 'telethon' %}<span class="mode-badge mode-telethon" style="margin-left:4px">📱 Telethon</span>{% endif %}
             </span>
         </div>
         {% if has_password %}
-        <div style="display:flex;gap:6px;border-top:1px solid var(--border-color);padding-top:8px">
-            <span style="font-size:11px;color:var(--text-muted);cursor:pointer" onclick="showChangePassword()"><i class="fas fa-key"></i> 密码</span>
-            <span style="font-size:11px;color:var(--text-muted);cursor:pointer;margin-left:auto" onclick="logout()"><i class="fas fa-sign-out-alt"></i> 退出</span>
+        <div style="display:flex;gap:6px;align-items:center;border-top:1px solid var(--border-color);padding-top:8px">
+            <span style="font-size:11px;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;gap:4px" onclick="showChangePassword()"><i class="fas fa-key"></i> 密码</span>
+            <span style="font-size:11px;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:auto" onclick="logout()"><i class="fas fa-sign-out-alt"></i> 退出</span>
         </div>
         {% endif %}
     </div>
@@ -507,23 +750,51 @@
 <div class="page active" id="page-overview">
     <div class="page-header">
         <h2><i class="fas fa-chart-pie" style="color:var(--accent-blue)"></i> 总览</h2>
-        <span style="font-size:13px;color:var(--text-muted)">实时更新 · <span id="refreshTime">{{ now }}</span></span>
+        <span style="font-size:12px;color:var(--text-muted)"><i class="fas fa-sync"></i> <span id="refreshTime">{{ now }}</span></span>
     </div>
     <div class="stats-grid" id="statsGrid">
-        <div class="stat-card"><div class="icon"><i class="fas fa-users"></i></div><div class="label">监控群组</div><div class="value" id="statGroups">{{ stats.total_groups }}</div></div>
-        <div class="stat-card"><div class="icon"><i class="fas fa-comment-dots"></i></div><div class="label">今日消息</div><div class="value" id="statTodayMsgs">{{ stats.today_msgs }}</div></div>
-        <div class="stat-card"><div class="icon"><i class="fas fa-rocket"></i></div><div class="label">今日活跃群</div><div class="value" id="statActiveGroups">{{ stats.active_groups }}</div></div>
-        <div class="stat-card"><div class="icon"><i class="fas fa-exclamation-circle"></i></div><div class="label">今日反馈</div><div class="value" id="statFeedback">{{ stats.today_feedback }}</div></div>
-        <div class="stat-card"><div class="icon"><i class="fas fa-database"></i></div><div class="label">历史消息总计</div><div class="value" id="statTotalMsgs">{{ stats.total_msgs }}</div></div>
-        <div class="stat-card"><div class="icon"><i class="fas fa-circle"></i></div><div class="label">监控状态</div>
-            <div class="value" style="font-size:18px;{{ 'color:var(--accent-green)' if monitoring else 'color:var(--accent-red)' }}">
+        <div class="stat-card">
+            <div class="glow" style="background:var(--accent-blue)"></div>
+            <div class="icon blue"><i class="fas fa-users"></i></div>
+            <div class="label">监控群组</div>
+            <div class="value blue" id="statGroups">{{ stats.total_groups }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="glow" style="background:var(--accent-green)"></div>
+            <div class="icon green"><i class="fas fa-comment-dots"></i></div>
+            <div class="label">今日消息</div>
+            <div class="value green" id="statTodayMsgs">{{ stats.today_msgs }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="glow" style="background:var(--accent-cyan)"></div>
+            <div class="icon green" style="background:rgba(34,211,238,.15);color:var(--accent-cyan)"><i class="fas fa-rocket"></i></div>
+            <div class="label">今日活跃群</div>
+            <div class="value" style="color:var(--accent-cyan)" id="statActiveGroups">{{ stats.active_groups }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="glow" style="background:var(--accent-orange)"></div>
+            <div class="icon orange"><i class="fas fa-exclamation-circle"></i></div>
+            <div class="label">今日反馈</div>
+            <div class="value orange" id="statFeedback">{{ stats.today_feedback }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="glow" style="background:var(--accent-purple)"></div>
+            <div class="icon purple"><i class="fas fa-database"></i></div>
+            <div class="label">历史消息总计</div>
+            <div class="value" style="color:var(--accent-purple)" id="statTotalMsgs">{{ stats.total_msgs }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="glow" style="background:{{ 'var(--accent-green)' if monitoring else 'var(--accent-red)' }}"></div>
+            <div class="icon {{ 'green' if monitoring else 'red' }}"><i class="fas fa-circle"></i></div>
+            <div class="label">监控状态</div>
+            <div class="value" style="font-size:16px;{{ 'color:var(--accent-green)' if monitoring else 'color:var(--accent-red)' }}">
                 {{ '🟢 运行中' if monitoring else '🔴 已停止' }}
-                {% if monitor_mode == 'bot' %}<span class="mode-badge mode-bot" style="font-size:11px;margin-left:6px">🤖 Bot</span>{% endif %}
+                {% if monitor_mode == 'bot' %}<span class="mode-badge mode-bot" style="font-size:10px;margin-left:4px">🤖 Bot</span>{% endif %}
             </div>
         </div>
     </div>
     <div class="chart-container">
-        <h3><i class="fas fa-chart-bar" style="color:var(--accent-blue)"></i> 消息趋势 (7天)</h3>
+        <h3><i class="fas fa-chart-bar"></i> 消息趋势 (7天)</h3>
         <canvas id="trendChart" height="80"></canvas>
     </div>
     <div class="dashboard-grid">
@@ -537,11 +808,11 @@
                         <tr>
                             <td><i class="fas fa-telegram" style="color:var(--accent-blue);margin-right:6px"></i> {{ g.title or '未命名' }}{% if g.username %} <span class="text-muted">@{{ g.username }}</span>{% endif %}</td>
                             <td>{{ g.member_count or '-' }}</td>
-                            <td>{{ g.member_count or 0 }}</td>
-                            <td><span class="tag tag-green">活跃</span></td>
+                            <td><span class="tag tag-blue">{{ g.member_count or 0 }}</span></td>
+                            <td><span class="tag tag-green"><i class="fas fa-circle" style="font-size:6px;margin-right:4px"></i>活跃</span></td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="4" class="text-muted" style="text-align:center;padding:30px">暂无监控群组 — 连接 Bot 后自动发现</td></tr>
+                        <tr><td colspan="4" class="text-muted" style="text-align:center;padding:40px"><i class="fas fa-inbox" style="font-size:24px;display:block;margin-bottom:8px;opacity:.3"></i>暂无监控群组</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -554,11 +825,11 @@
 <div class="page" id="page-groups">
     <div class="page-header">
         <h2><i class="fas fa-users" style="color:var(--accent-blue)"></i> 群组管理</h2>
-        <button class="btn btn-primary" onclick="showAddGroup()"><i class="fas fa-plus"></i> 手动添加</button>
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="showAddGroup()"><i class="fas fa-plus"></i> 添加群组</button>
+        </div>
     </div>
-    <div class="alert alert-info">
-        <i class="fas fa-info-circle"></i> 使用 Bot 模式时，将 Bot 添加到群组后会自动出现在列表中。你也可以手动输入群组 ID 添加。
-    </div>
+    <div class="alert alert-info"><i class="fas fa-info-circle"></i> 使用 Bot 模式时，将 Bot 添加到群组后会自动出现在列表中。</div>
     <div class="card">
         <div class="card-title"><i class="fas fa-list"></i> 监控中的群组</div>
         <div class="table-wrap">
@@ -569,13 +840,13 @@
                     <tr>
                         <td class="text-muted">{{ g.group_id }}</td>
                         <td><i class="fas fa-telegram" style="color:var(--accent-blue);margin-right:6px"></i> {{ g.title or '未命名' }}</td>
-                        <td>{% if g.username %}@{{ g.username }}{% else %}-{% endif %}</td>
-                        <td>{{ g.member_count or '-' }}</td>
+                        <td>{% if g.username %}@{{ g.username }}{% else %}<span class="text-muted-2">-</span>{% endif %}</td>
+                        <td><span class="tag tag-blue">{{ g.member_count or '-' }}</span></td>
                         <td class="text-muted">{{ g.added_at[:10] if g.added_at else '-' }}</td>
                         <td><button class="btn btn-red btn-xs" onclick="removeGroup({{ g.group_id }})"><i class="fas fa-trash"></i> 移除</button></td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="6" class="text-muted" style="text-align:center;padding:30px">暂无群组 — 添加 Bot 到群组后自动出现</td></tr>
+                    <tr><td colspan="6" class="text-muted" style="text-align:center;padding:40px">暂无群组</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -587,10 +858,21 @@
             <h3><i class="fas fa-plus-circle"></i> 添加群组</h3>
             <div class="form-group"><label>群组 ID</label><input type="number" id="newGroupId" placeholder="-1001234567890"></div>
             <div class="form-group"><label>群组名称</label><input type="text" id="newGroupTitle" placeholder="群组名称"></div>
-            <div class="form-group"><label>用户名 (可选)</label><input type="text" id="newGroupUsername" placeholder="@username"></div>
-            <div style="display:flex;gap:8px;justify-content:flex-end">
+            <div class="form-group"><label>用户名 <span class="text-muted-2">(可选)</span></label><input type="text" id="newGroupUsername" placeholder="@username"></div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
                 <button class="btn btn-ghost" onclick="closeModal('addGroupModal')">取消</button>
                 <button class="btn btn-primary" onclick="addGroup()">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dialogs Modal -->
+    <div class="modal-overlay" id="dialogsModal">
+        <div class="modal">
+            <h3><i class="fas fa-search"></i> 可用群组</h3>
+            <div id="dialogsList" style="max-height:400px;overflow-y:auto"></div>
+            <div style="margin-top:16px;text-align:right">
+                <button class="btn btn-ghost" onclick="closeModal('dialogsModal')">关闭</button>
             </div>
         </div>
     </div>
@@ -600,7 +882,7 @@
 <div class="page" id="page-messages">
     <div class="page-header">
         <h2><i class="fas fa-comments" style="color:var(--accent-blue)"></i> 消息监控</h2>
-        <button class="btn btn-ghost" onclick="refreshMessages()"><i class="fas fa-sync"></i> 刷新</button>
+        <button class="btn btn-ghost btn-sm" onclick="refreshMessages()"><i class="fas fa-sync"></i> 刷新</button>
     </div>
     <div class="card full">
         <div class="card-title"><i class="fas fa-stream"></i> 最近消息流</div>
@@ -609,14 +891,14 @@
             <div class="msg-item {{ 'feedback-highlight' if m.is_feedback }}">
                 <div class="msg-meta">
                     <span class="msg-group"><i class="fas fa-telegram"></i> {{ m.group_title }}</span>
-                    <span class="msg-sender">{{ m.sender_name }}</span>
-                    <span>{{ m.msg_date[:19] if m.msg_date else '' }}</span>
-                    {% if m.is_feedback %}<span class="msg-feedback-badge">📩 反馈</span>{% endif %}
+                    <span class="msg-sender"><i class="fas fa-user"></i> {{ m.sender_name }}</span>
+                    <span><i class="far fa-clock"></i> {{ m.msg_date[:19] if m.msg_date else '' }}</span>
+                    {% if m.is_feedback %}<span class="msg-feedback-badge"><i class="fas fa-bell"></i> 反馈</span>{% endif %}
                 </div>
                 <div class="msg-text">{{ m.text[:200] }}{% if m.text|length > 200 %}...{% endif %}</div>
             </div>
             {% else %}
-            <div class="text-muted" style="text-align:center;padding:30px">暂无消息记录 — 启动监控后自动收集</div>
+            <div class="text-muted" style="text-align:center;padding:40px"><i class="fas fa-inbox" style="font-size:28px;display:block;margin-bottom:8px;opacity:.3"></i>暂无消息</div>
             {% endfor %}
         </div>
     </div>
@@ -627,9 +909,7 @@
     <div class="page-header">
         <h2><i class="fas fa-bell" style="color:var(--accent-orange)"></i> 反馈监控</h2>
     </div>
-    <div class="alert alert-info">
-        <i class="fas fa-info-circle"></i> 设置关键词，当群聊中出现包含这些关键词的消息时，自动通过 Bark 推送通知到你的手机。
-    </div>
+    <div class="alert alert-info"><i class="fas fa-info-circle"></i> 设置关键词，群聊中出现匹配消息时自动通过 Bark 推送通知到你的手机。</div>
     <div class="dashboard-grid">
         <div class="card">
             <div class="card-title"><i class="fas fa-key"></i> 反馈关键词</div>
@@ -641,7 +921,7 @@
                 {% for kw in keywords %}
                 <span class="keyword-tag">{{ kw }}<span class="remove" onclick="removeKeyword('{{ kw }}')">&times;</span></span>
                 {% else %}
-                <span class="text-muted" style="font-size:13px">暂无关键词，添加后开始监控反馈</span>
+                <span class="text-muted" style="font-size:13px">暂无关键词</span>
                 {% endfor %}
             </div>
         </div>
@@ -652,9 +932,9 @@
                     <thead><tr><th>群组</th><th>发送者</th><th>内容</th><th>时间</th></tr></thead>
                     <tbody id="feedbackTable">
                         {% for m in recent_msgs if m.is_feedback %}
-                        <tr><td>{{ m.group_title }}</td><td>{{ m.sender_name }}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.text[:60] }}...</td><td class="text-muted">{{ m.msg_date[:19] }}</td></tr>
+                        <tr><td>{{ m.group_title }}</td><td>{{ m.sender_name }}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.text[:60] }}...</td><td class="text-muted">{{ m.msg_date[:16] }}</td></tr>
                         {% else %}
-                        <tr><td colspan="4" class="text-muted" style="text-align:center;padding:20px">暂无反馈记录</td></tr>
+                        <tr><td colspan="4" class="text-muted" style="text-align:center;padding:30px">暂无反馈</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -668,59 +948,46 @@
     <div class="page-header">
         <h2><i class="fas fa-file-alt" style="color:var(--accent-green)"></i> 日报汇总</h2>
         <div class="btn-group">
-            <button class="btn btn-green" onclick="generateAllReports()"><i class="fas fa-sync"></i> 生成日报</button>
-            <button class="btn btn-primary" onclick="generateReportImages()"><i class="fas fa-image"></i> 生成图片</button>
-            <button class="btn btn-ghost" onclick="showCronSetup()"><i class="fas fa-clock"></i> 定时任务</button>
+            <button class="btn btn-green btn-sm" onclick="generateAllReports()"><i class="fas fa-sync"></i> 生成</button>
+            <button class="btn btn-primary btn-sm" onclick="generateReportImages()"><i class="fas fa-image"></i> 图片</button>
+            <button class="btn btn-ghost btn-sm" onclick="showCronSetup()"><i class="fas fa-clock"></i> 定时</button>
         </div>
     </div>
-
-    <div class="alert alert-success">
-        <i class="fas fa-check-circle"></i> 每日 <strong>22:00</strong> 自动汇总当日群聊讨论并生成精美图片报告。可手动生成或设置定时任务。
-    </div>
-
-    <!-- Generated Images -->
+    <div class="alert alert-success"><i class="fas fa-check-circle"></i> 每日 <strong>22:00</strong> 自动汇总当日群聊讨论并生成精美图片报告。</div>
     <div class="card" id="reportImagesCard" style="display:none">
-        <div class="card-title"><i class="fas fa-images"></i> 生成的报告图片</div>
+        <div class="card-title"><i class="fas fa-images"></i> 报告图片</div>
         <div id="reportImagesContainer" style="display:flex;gap:16px;flex-wrap:wrap"></div>
     </div>
-
-    <div class="dashboard-grid">
-        <div class="card full">
-            <div class="card-title"><i class="fas fa-list-alt"></i> 群聊日报列表</div>
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th>日期</th><th>群组</th><th>消息数</th><th>活跃用户</th><th>反馈数</th><th>摘要</th></tr></thead>
-                    <tbody id="reportsTable">
-                        {% for r in reports %}
-                        <tr>
-                            <td>{{ r.report_date }}</td>
-                            <td>{{ r.group_title }}</td>
-                            <td><span class="tag tag-blue">{{ r.msg_count }}</span></td>
-                            <td><span class="tag tag-green">{{ r.active_users }}</span></td>
-                            <td><span class="tag tag-orange">{{ r.feedback_count }}</span></td>
-                            <td class="text-muted" style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.summary[:60] }}...</td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="6" class="text-muted" style="text-align:center;padding:30px">暂无日报数据 — 有消息后自动生成</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+    <div class="card full">
+        <div class="card-title"><i class="fas fa-list-alt"></i> 群聊日报</div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>日期</th><th>群组</th><th>消息数</th><th>活跃用户</th><th>反馈数</th><th>摘要</th></tr></thead>
+                <tbody id="reportsTable">
+                    {% for r in reports %}
+                    <tr>
+                        <td><span class="tag tag-cyan">{{ r.report_date }}</span></td>
+                        <td>{{ r.group_title }}</td>
+                        <td><span class="tag tag-blue">{{ r.msg_count }}</span></td>
+                        <td><span class="tag tag-green">{{ r.active_users }}</span></td>
+                        <td><span class="tag tag-orange">{{ r.feedback_count }}</span></td>
+                        <td class="text-muted" style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.summary[:60] }}...</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-muted" style="text-align:center;padding:40px">暂无日报</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
-
-    <!-- Cron Setup Modal -->
+    <!-- Cron Modal -->
     <div class="modal-overlay" id="cronModal">
         <div class="modal">
-            <h3><i class="fas fa-clock"></i> 设置每日22:00定时日报</h3>
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle"></i> 使用 Hermes 的 cron 功能自动在每天 22:00 生成日报图片。
-            </div>
-            <div id="cronSetupContent">
-                <p style="margin-bottom:12px;font-size:14px;color:var(--text-secondary)">正在获取设置命令...</p>
-            </div>
+            <h3><i class="fas fa-clock"></i> 设置每日 22:00 定时日报</h3>
+            <div class="alert alert-info"><i class="fas fa-info-circle"></i> 使用 Hermes cron 功能自动生成日报。</div>
+            <div id="cronSetupContent"><p class="text-muted">加载中...</p></div>
             <div style="margin-top:16px;text-align:right">
-                <button class="btn btn-primary" onclick="setupCronJob()"><i class="fas fa-clock"></i> 创建设置任务</button>
+                <button class="btn btn-primary" onclick="setupCronJob()"><i class="fas fa-clock"></i> 设置</button>
                 <button class="btn btn-ghost" onclick="closeModal('cronModal')">关闭</button>
             </div>
         </div>
@@ -732,84 +999,62 @@
     <div class="page-header">
         <h2><i class="fab fa-telegram" style="color:var(--accent-blue)"></i> Telegram 连接</h2>
     </div>
-
     <div class="tab-bar">
-        <button class="tab-btn active" data-tab="bot" onclick="switchTab('bot')">🤖 Bot 模式（推荐）</button>
-        <button class="tab-btn" data-tab="telethon" onclick="switchTab('telethon')">📱 用户账号模式</button>
+        <button class="tab-btn active" data-tab="bot" onclick="switchTab('bot')">🤖 Bot 模式 <span class="tag tag-purple" style="margin-left:4px">推荐</span></button>
+        <button class="tab-btn" data-tab="telethon" onclick="switchTab('telethon')">📱 用户账号</button>
     </div>
-
-    <!-- ── Tab: Bot Mode ── -->
+    <!-- Bot Tab -->
     <div class="tab-content active" id="tab-bot">
-        <div class="alert alert-success">
-            <i class="fas fa-check-circle"></i> <strong>推荐方案</strong> — 在 @BotFather 创建 Bot，获取 Token，填入下方即可。安全、简单、稳定。
-        </div>
-
+        <div class="alert alert-success"><i class="fas fa-check-circle"></i> 在 @BotFather 创建 Bot，获取 Token，填入下方即可。安全简单。</div>
         <div class="card">
             <div class="card-title"><i class="fas fa-info-circle"></i> 设置步骤</div>
             <ol class="setup-steps">
-                <li>在 Telegram 中打开 <strong>@BotFather</strong>，发送 <code>/newbot</code> 创建新 Bot</li>
-                <li>记下 BotFather 给你的 <strong>HTTP Token</strong>（格式: <code>123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11</code>）</li>
-                <li>将 Bot <strong>添加到群组</strong>并设置为管理员（至少需要消息读取权限）</li>
-                <li>在 @BotFather 中运行 <code>/setprivacy</code> → 选择你的 Bot → <strong>Disable</strong>（关闭隐私模式以读取所有消息）</li>
-                <li>将下方 Token 填入 → 点击「启动」</li>
+                <li>打开 <strong>@BotFather</strong>，发送 <code>/newbot</code> 创建 Bot</li>
+                <li>记下 <strong>HTTP Token</strong>（格式: <code>123456:ABC-DEF...</code>）</li>
+                <li>将 Bot <strong>添加到群组</strong>并设为管理员</li>
+                <li>@BotFather → <code>/setprivacy</code> → 你的 Bot → <strong>Disable</strong></li>
+                <li>填入 Token → 启动</li>
             </ol>
         </div>
-
         <div class="card">
             <div class="card-title"><i class="fas fa-key"></i> Bot Token</div>
             <form id="botForm" onsubmit="return startBot(event)">
                 <div class="form-group">
-                    <label>Bot Token（从 @BotFather 获取）</label>
+                    <label>Bot Token</label>
                     <input type="password" name="token" id="botTokenInput" value="{{ bot_token if bot_token and bot_token != '****' else '' }}" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
                 </div>
-                <div class="btn-group" style="margin-top:8px">
-                    <button type="submit" class="btn btn-primary" id="botStartBtn">
-                        <i class="fas fa-play"></i> {{ '重新连接' if monitoring and monitor_mode == 'bot' else '🤖 启动 Bot 监控' }}
-                    </button>
-                    <button type="button" class="btn btn-red" onclick="stopBot()" id="botStopBtn" {{ 'disabled' if not (monitoring and monitor_mode == 'bot') }}>
-                        <i class="fas fa-stop"></i> 停止 Bot
-                    </button>
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-primary" id="botStartBtn"><i class="fas fa-play"></i> {{ '重新连接' if monitoring and monitor_mode == 'bot' else '🤖 启动 Bot' }}</button>
+                    <button type="button" class="btn btn-red" onclick="stopBot()" id="botStopBtn" {{ 'disabled' if not (monitoring and monitor_mode == 'bot') }}><i class="fas fa-stop"></i> 停止</button>
                 </div>
             </form>
             <div id="botStatus" style="margin-top:12px;font-size:13px"></div>
-
             {% if monitoring and monitor_mode == 'bot' %}
-            <div class="alert alert-success" style="margin-top:12px">
-                <i class="fas fa-check-circle"></i> Bot 正在运行！将 Bot 添加到群组后，消息会自动出现在消息流中。
-            </div>
+            <div class="alert alert-success" style="margin-top:12px"><i class="fas fa-check-circle"></i> Bot 正在运行！</div>
             {% endif %}
         </div>
     </div>
-
-    <!-- ── Tab: Telethon Mode ── -->
+    <!-- Telethon Tab -->
     <div class="tab-content" id="tab-telethon">
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle"></i> 使用个人 Telegram 账号连接。需要 API ID 和 API Hash，请在 <a href="https://my.telegram.org/apps" target="_blank" style="color:var(--accent-blue)">my.telegram.org</a> 获取。首次连接需要输入验证码。
-        </div>
-
+        <div class="alert alert-info"><i class="fas fa-info-circle"></i> 使用个人账号，需要 API ID/Hash，在 <a href="https://my.telegram.org/apps" target="_blank" style="color:var(--accent-blue)">my.telegram.org</a> 获取。</div>
         <div class="card">
-            <div class="card-title"><i class="fas fa-plug"></i> 用户账号连接</div>
+            <div class="card-title"><i class="fas fa-plug"></i> 连接设置</div>
             <form id="telethonForm" onsubmit="return startTelethon(event)">
-                <div class="form-group"><label>API ID</label><input type="number" name="api_id" value="{{ api_id }}" placeholder="例如: 123456" required></div>
-                <div class="form-group"><label>API Hash</label><input type="password" name="api_hash" value="{{ api_hash if api_hash and api_hash != '****' else '' }}" placeholder="你的 API Hash" required></div>
-                <div class="form-group"><label>手机号（带国家码）</label><input type="tel" name="phone" value="{{ phone }}" placeholder="+8613800138000" required></div>
+                <div class="form-group"><label>API ID</label><input type="number" name="api_id" value="{{ api_id }}" placeholder="123456" required></div>
+                <div class="form-group"><label>API Hash</label><input type="password" name="api_hash" value="{{ api_hash if api_hash and api_hash != '****' else '' }}" placeholder="API Hash" required></div>
+                <div class="form-group"><label>手机号</label><input type="tel" name="phone" value="{{ phone }}" placeholder="+8613800138000" required></div>
                 <div class="btn-group">
-                    <button type="submit" class="btn btn-primary" id="telethonStartBtn">
-                        <i class="fas fa-play"></i> {{ '重新连接' if monitoring and monitor_mode == 'telethon' else '📱 启动 Telethon' }}
-                    </button>
-                    <button type="button" class="btn btn-red" onclick="stopTelethon()" id="telethonStopBtn" {{ 'disabled' if not (monitoring and monitor_mode == 'telethon') }}>
-                        <i class="fas fa-stop"></i> 停止
-                    </button>
+                    <button type="submit" class="btn btn-primary" id="telethonStartBtn"><i class="fas fa-play"></i> {{ '重新连接' if monitoring and monitor_mode == 'telethon' else '📱 启动' }}</button>
+                    <button type="button" class="btn btn-red" onclick="stopTelethon()" id="telethonStopBtn" {{ 'disabled' if not (monitoring and monitor_mode == 'telethon') }}><i class="fas fa-stop"></i> 停止</button>
                 </div>
             </form>
             <div id="telethonStatus" style="margin-top:12px;font-size:13px"></div>
         </div>
-
         <div class="card">
             <div class="card-title"><i class="fas fa-search"></i> 快速操作</div>
             <div class="btn-group">
-                <button class="btn btn-ghost" onclick="scanDialogs()"><i class="fas fa-search"></i> 扫描可用群组</button>
-                <button class="btn btn-ghost" onclick="location.reload()"><i class="fas fa-sync"></i> 刷新状态</button>
+                <button class="btn btn-ghost btn-sm" onclick="scanDialogs()"><i class="fas fa-search"></i> 扫描可用群组</button>
+                <button class="btn btn-ghost btn-sm" onclick="location.reload()"><i class="fas fa-sync"></i> 刷新状态</button>
             </div>
         </div>
     </div>
@@ -818,36 +1063,30 @@
 <!-- ========== PAGE: Bark ========== -->
 <div class="page" id="page-bark">
     <div class="page-header">
-        <h2><i class="fas fa-bolt" style="color:var(--accent-orange)"></i> Bark 通知设置</h2>
+        <h2><i class="fas fa-bolt" style="color:var(--accent-orange)"></i> Bark 通知</h2>
     </div>
-    <div class="alert alert-info">
-        <i class="fas fa-info-circle"></i> Bark 是一款 iOS 推送通知工具。在 App Store 下载 Bark，复制你的推送密钥粘贴到下方。
-        <a href="https://bark.day.app" target="_blank" style="color:var(--accent-blue)">了解更多</a>
-    </div>
+    <div class="alert alert-info"><i class="fas fa-info-circle"></i> App Store 下载 <a href="https://bark.day.app" target="_blank" style="color:var(--accent-blue)">Bark</a>，复制推送密钥粘贴到下方。</div>
     <div class="card" style="max-width:500px">
-        <div class="card-title"><i class="fas fa-key"></i> Bark 配置</div>
-        <div class="form-group">
-            <label>Bark 密钥</label>
-            <input type="text" id="barkKeyInput" value="{{ bark_key }}" placeholder="https://api.day.app/你的密钥 或 仅密钥部分">
-        </div>
+        <div class="card-title"><i class="fas fa-key"></i> 配置</div>
+        <div class="form-group"><label>Bark 密钥</label><input type="text" id="barkKeyInput" value="{{ bark_key }}" placeholder="https://api.day.app/你的密钥"></div>
         <div class="btn-group">
             <button class="btn btn-primary" onclick="saveBarkKey()"><i class="fas fa-save"></i> 保存</button>
-            <button class="btn btn-green" onclick="testBark()"><i class="fas fa-paper-plane"></i> 测试通知</button>
+            <button class="btn btn-green" onclick="testBark()"><i class="fas fa-paper-plane"></i> 测试</button>
         </div>
     </div>
     <div class="card" style="max-width:500px">
         <div class="card-title"><i class="fas fa-info-circle"></i> 通知说明</div>
         <table>
-            <tr><td style="width:120px">📩 反馈通知</td><td class="text-muted">群聊中出现匹配关键词的消息 → 即时推送（时效性通知）</td></tr>
-            <tr><td>📊 日报通知</td><td class="text-muted">每日群聊汇总报告推送到 Bark</td></tr>
-            <tr><td>🔔 测试通知</td><td class="text-muted">点击「测试通知」验证推送是否正常工作</td></tr>
-            <tr><td>🔑 Bark 密钥</td><td class="text-muted">Bark App 中显示的完整 URL 中的密钥部分</td></tr>
+            <tr><td style="width:120px;padding:8px 0">📩 反馈通知</td><td class="text-muted" style="padding:8px 0">关键词匹配 → 即时推送（时效性通知）</td></tr>
+            <tr><td style="padding:8px 0">📊 日报通知</td><td class="text-muted" style="padding:8px 0">每日汇总 Push 到手机</td></tr>
+            <tr><td style="padding:8px 0">🔔 测试通知</td><td class="text-muted" style="padding:8px 0">验证推送是否正常工作</td></tr>
         </table>
     </div>
 </div>
 
 </main>
 
+<!-- ─── Toast ─── -->
 <div class="toast-container" id="toastContainer"></div>
 
 <script>
@@ -864,26 +1103,28 @@ new Chart(trendCtx, {
         datasets: [{
             label: '消息数',
             data: msgCounts.length ? msgCounts : [0],
-            backgroundColor: 'rgba(91,141,239,0.6)',
-            borderColor: 'rgba(91,141,239,1)',
+            backgroundColor: 'rgba(91,141,239,0.5)',
+            borderColor: 'rgba(91,141,239,0.8)',
             borderWidth: 1,
-            borderRadius: 4,
+            borderRadius: 6,
         }, {
             label: '反馈数',
             data: fbCounts.length ? fbCounts : [0],
-            backgroundColor: 'rgba(255,149,0,0.6)',
-            borderColor: 'rgba(255,149,0,1)',
+            backgroundColor: 'rgba(255,149,0,0.5)',
+            borderColor: 'rgba(255,149,0,0.8)',
             borderWidth: 1,
-            borderRadius: 4,
+            borderRadius: 6,
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: '#8b8fa3', font: { size: 12 } } } },
+        plugins: {
+            legend: { labels: { color: '#9498b8', font: { size: 11 }, boxWidth: 12, padding: 16 } }
+        },
         scales: {
-            x: { ticks: { color: '#5c6080' }, grid: { color: 'rgba(45,49,84,0.3)' } },
-            y: { beginAtZero: true, ticks: { color: '#5c6080' }, grid: { color: 'rgba(45,49,84,0.3)' } }
+            x: { ticks: { color: '#5c6085' }, grid: { color: 'rgba(45,49,84,0.2)' } },
+            y: { beginAtZero: true, ticks: { color: '#5c6085' }, grid: { color: 'rgba(45,49,84,0.2)' } }
         }
     }
 });
@@ -911,7 +1152,7 @@ function toast(msg, type='success') {
     t.className = `toast toast-${type}`;
     t.textContent = msg;
     c.appendChild(t);
-    setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(() => t.remove(),300); }, 3000);
+    setTimeout(() => { t.style.opacity='0'; t.style.transform='translateX(30px)'; t.style.transition='all .3s'; setTimeout(() => t.remove(),300); }, 3000);
 }
 
 async function api(method, path, body=null) {
@@ -919,25 +1160,25 @@ async function api(method, path, body=null) {
     if (body) opts.body = JSON.stringify(body);
     try {
         const resp = await fetch(path, opts);
+        if (resp.redirected && resp.url.includes('/login')) { window.location.href = '/login'; return null; }
         return await resp.json();
-    } catch(e) { toast(`请求失败: ${e.message}`, 'error'); return null; }
+    } catch(e) { toast(`请求失败`, 'error'); return null; }
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-function showAddGroup() { document.getElementById('addGroupModal').classList.add('show'); }
 
 // ─── Groups ───
+function showAddGroup() { document.getElementById('addGroupModal').classList.add('show'); }
 async function addGroup() {
     const gid = parseInt(document.getElementById('newGroupId').value);
     const title = document.getElementById('newGroupTitle').value;
     const username = document.getElementById('newGroupUsername').value;
     if (!gid) { toast('请输入群组 ID', 'error'); return; }
     const r = await api('POST', '/api/groups/add', { group_id: gid, title, username });
-    if (r && r.ok) { toast('群组添加成功'); closeModal('addGroupModal'); setTimeout(()=>location.reload(),800); }
+    if (r && r.ok) { toast('群组已添加'); closeModal('addGroupModal'); setTimeout(()=>location.reload(),800); }
 }
-
 async function removeGroup(gid) {
-    if (!confirm('确定要移除群组吗？')) return;
+    if (!confirm('确定移除该群组？')) return;
     const r = await api('POST', '/api/groups/remove', { group_id: gid });
     if (r && r.ok) { toast('群组已移除'); setTimeout(()=>location.reload(),800); }
 }
@@ -946,19 +1187,18 @@ async function removeGroup(gid) {
 async function refreshMessages() {
     const r = await api('GET', '/api/messages?limit=30');
     if (!r || !r.messages) return;
-    const feed = document.getElementById('messageFeed');
-    feed.innerHTML = r.messages.map(m => `
+    document.getElementById('messageFeed').innerHTML = r.messages.map(m => `
         <div class="msg-item ${m.is_feedback ? 'feedback-highlight' : ''}">
             <div class="msg-meta">
                 <span class="msg-group"><i class="fas fa-telegram"></i> ${m.group_title||'未知'}</span>
-                <span class="msg-sender">${m.sender_name}</span>
-                <span>${m.msg_date ? m.msg_date.slice(0,19) : ''}</span>
-                ${m.is_feedback ? '<span class="msg-feedback-badge">📩 反馈</span>' : ''}
+                <span class="msg-sender"><i class="fas fa-user"></i> ${m.sender_name}</span>
+                <span><i class="far fa-clock"></i> ${m.msg_date ? m.msg_date.slice(0,19) : ''}</span>
+                ${m.is_feedback ? '<span class="msg-feedback-badge"><i class="fas fa-bell"></i> 反馈</span>' : ''}
             </div>
             <div class="msg-text">${(m.text||'').slice(0,200)}</div>
         </div>
     `).join('');
-    toast('消息流已刷新', 'info');
+    toast('已刷新', 'info');
 }
 
 // ─── Keywords ───
@@ -967,11 +1207,11 @@ async function addKeyword() {
     const kw = input.value.trim();
     if (!kw) { toast('请输入关键词', 'error'); return; }
     const r = await api('POST', '/api/keywords/add', { keyword: kw });
-    if (r && r.ok) { toast(`关键词 "${kw}" 已添加`); input.value=''; setTimeout(()=>location.reload(),500); }
+    if (r && r.ok) { toast(`已添加: ${kw}`); input.value=''; setTimeout(()=>location.reload(),500); }
 }
 async function removeKeyword(kw) {
     const r = await api('POST', '/api/keywords/remove', { keyword: kw });
-    if (r && r.ok) { toast(`关键词 "${kw}" 已移除`); setTimeout(()=>location.reload(),500); }
+    if (r && r.ok) { toast(`已移除: ${kw}`); setTimeout(()=>location.reload(),500); }
 }
 
 // ─── Reports ───
@@ -983,152 +1223,95 @@ async function generateAllReports() {
         const r = await api('POST', '/api/reports/generate', { group_id: g.group_id });
         if (r && r.ok) c++;
     }
-    toast(`已生成 ${c} 个群组日报`);
+    toast(`已生成 ${c} 份日报`);
     setTimeout(()=>location.reload(),800);
 }
-
-// ─── Report Images ───
 async function generateReportImages() {
     toast('正在生成报告图片...', 'info');
     const r = await api('POST', '/api/reports/generate-image');
-    if (!r) return;
-    if (r.ok) {
-        toast(`✅ 已生成 ${r.count || 1} 张报告图片`);
-        // Show images
-        const container = document.getElementById('reportImagesContainer');
-        const card = document.getElementById('reportImagesCard');
-        card.style.display = 'block';
-        container.innerHTML = '';
-        const images = r.images || (r.filename ? [r.filename] : []);
-        if (r.url) {
-            // Single image
-            container.innerHTML = `<div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow:hidden;max-width:400px">
-                <img src="${r.url}" style="width:100%;display:block" alt="Report">
-                <div style="padding:8px;text-align:center;font-size:12px;color:var(--text-muted)">
-                    <a href="${r.url}" target="_blank" style="color:var(--accent-blue)">查看大图</a>
-                </div>
-            </div>`;
-        }
-        for (const f of images) {
-            const imgUrl = `/report_images/${f}`;
-            const div = document.createElement('div');
-            div.style.cssText = 'border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow:hidden;max-width:380px';
-            div.innerHTML = `<img src="${imgUrl}?t=${Date.now()}" style="width:100%;display:block" alt="Report">
-                <div style="padding:8px;text-align:center;font-size:12px;color:var(--text-muted)">
-                    <i class="fas fa-download"></i> <a href="${imgUrl}" target="_blank" style="color:var(--accent-blue)">查看大图 / 保存</a>
-                </div>`;
-            container.appendChild(div);
-        }
-        // Show existing images too
-        listReportImages();
-    } else {
-        toast(`生成失败: ${r.error}`, 'error');
-    }
-}
-
-async function listReportImages() {
-    const r = await api('GET', '/api/reports/images');
-    if (!r || !r.images || !r.images.length) return;
+    if (!r || !r.ok) { toast('生成失败', 'error'); return; }
+    toast(`✅ 已生成 ${r.count || 1} 张图片`);
     const container = document.getElementById('reportImagesContainer');
     const card = document.getElementById('reportImagesCard');
     card.style.display = 'block';
+    container.innerHTML = '';
+    const images = r.images || (r.filename ? [r.filename] : []);
+    for (const f of images) {
+        const div = document.createElement('div');
+        div.className = 'report-img';
+        div.innerHTML = `<img src="/report_images/${f}?t=${Date.now()}" alt="日报"><div class="caption"><a href="/report_images/${f}" target="_blank"><i class="fas fa-external-link-alt"></i> 查看大图</a></div>`;
+        container.appendChild(div);
+    }
+    listReportImages();
+}
+async function listReportImages() {
+    const r = await api('GET', '/api/reports/images');
+    if (!r || !r.images) return;
+    const container = document.getElementById('reportImagesContainer');
+    document.getElementById('reportImagesCard').style.display = 'block';
     for (const img of r.images) {
-        // Check if already shown
         if (container.querySelector(`img[src*="${img.filename}"]`)) continue;
         const div = document.createElement('div');
-        div.style.cssText = 'border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow:hidden;max-width:380px';
-        div.innerHTML = `<img src="${img.url}?t=${Date.now()}" style="width:100%;display:block" alt="Report">
-            <div style="padding:8px;text-align:center;font-size:12px;color:var(--text-muted)">
-                ${img.created} · ${img.size_kb}KB<br>
-                <a href="${img.url}" target="_blank" style="color:var(--accent-blue)">查看大图</a>
-            </div>`;
+        div.className = 'report-img';
+        div.innerHTML = `<img src="${img.url}?t=${Date.now()}" alt="日报"><div class="caption">${img.created} · ${img.size_kb}KB · <a href="${img.url}" target="_blank">查看</a></div>`;
         container.appendChild(div);
     }
 }
 
-// ─── Cron Setup ───
+// ─── Cron ───
 async function showCronSetup() {
     document.getElementById('cronModal').classList.add('show');
-    const content = document.getElementById('cronSetupContent');
-    content.innerHTML = '<p style="color:var(--text-secondary)">正在获取设置信息...</p>';
+    const el = document.getElementById('cronSetupContent');
+    el.innerHTML = '<p class="text-muted">加载中...</p>';
     const r = await api('POST', '/api/reports/daily-cron');
-    if (r && r.ok) {
-        content.innerHTML = `<pre style="background:var(--bg-input);padding:16px;border-radius:var(--radius-sm);font-size:13px;line-height:1.6;overflow-x:auto;white-space:pre-wrap;color:var(--text-primary)">${r.setup.replace(/\n/g,'<br>')}</pre>`;
-    } else {
-        content.innerHTML = '<p class="text-muted">获取失败</p>';
-    }
+    el.innerHTML = r && r.ok ? `<pre>${r.setup.replace(/\n/g,'<br>')}</pre>` : '<p class="text-muted">获取失败</p>';
 }
-
 async function setupCronJob() {
-    toast('在 Hermes 终端中执行以下命令创建设置 cron 任务...', 'info');
     const r = await api('POST', '/api/reports/daily-cron');
     if (r && r.ok) {
         document.getElementById('cronSetupContent').innerHTML = `
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle"></i> 复制以下命令到 Hermes 终端执行：
-            </div>
-            <pre style="background:var(--bg-input);padding:16px;border-radius:var(--radius-sm);font-size:13px;line-height:1.6;overflow-x:auto;white-space:pre-wrap;color:var(--accent-green);user-select:all">${r.setup.split('\n')[1]}</pre>
-            <p style="margin-top:12px;font-size:13px;color:var(--text-secondary)">执行后，每天 22:00 会自动生成日报图片并发送到你当前的对话中。</p>
-        `;
+            <div class="alert alert-success"><i class="fas fa-check-circle"></i> 复制到终端执行：</div>
+            <pre style="user-select:all">${r.setup.split('\n')[1]}</pre>
+            <p class="text-muted" style="margin-top:8px">每天 22:00 自动生成日报</p>`;
     }
 }
 
-// ─── Bot Mode ───
+// ─── Bot ───
 async function startBot(event) {
     event.preventDefault();
     const token = document.getElementById('botTokenInput').value.trim();
     if (!token) { toast('请输入 Bot Token', 'error'); return; }
-
     const btn = document.getElementById('botStartBtn');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 连接中...';
-
     const r = await api('POST', '/api/monitor/bot/start', { token });
-    if (r && r.ok) {
-        toast('🤖 Bot 监控已启动！');
-        setTimeout(()=>location.reload(),1000);
-    } else {
-        toast(`启动失败: ${r?.error||'未知错误'}`, 'error');
-        btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> 🤖 启动 Bot 监控';
-    }
+    if (r && r.ok) { toast('🤖 Bot 已启动！'); setTimeout(()=>location.reload(),1000); }
+    else { toast(`启动失败: ${r?.error||'???}`, 'error'); btn.disabled=false; btn.innerHTML='<i class="fas fa-play"></i> 🤖 启动 Bot'; }
 }
-
 async function stopBot() {
-    if (!confirm('确定停止 Bot 监控吗？')) return;
+    if (!confirm('停止 Bot？')) return;
     const r = await api('POST', '/api/monitor/bot/stop');
     if (r && r.ok) { toast('Bot 已停止'); setTimeout(()=>location.reload(),800); }
 }
-
-// ─── Telethon Mode ───
+// ─── Telethon ───
 async function startTelethon(event) {
     event.preventDefault();
     const fd = new FormData(event.target);
-    const api_id = parseInt(fd.get('api_id'));
-    const api_hash = fd.get('api_hash');
-    const phone = fd.get('phone');
+    const api_id = parseInt(fd.get('api_id')), api_hash = fd.get('api_hash'), phone = fd.get('phone');
     if (!api_id || !api_hash || !phone) { toast('请填写所有字段', 'error'); return; }
-
     const btn = document.getElementById('telethonStartBtn');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 连接中...';
-
     const r = await api('POST', '/api/monitor/telethon/start', { api_id, api_hash, phone });
-    if (r && r.ok) {
-        toast('📱 Telethon 监控已启动！');
-        setTimeout(()=>location.reload(),1000);
-    } else {
-        toast(`启动失败: ${r?.error||'未知错误'}`, 'error');
-        btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> 📱 启动 Telethon';
-    }
+    if (r && r.ok) { toast('📱 Telethon 已启动！'); setTimeout(()=>location.reload(),1000); }
+    else { toast(`启动失败: ${r?.error||'???}`, 'error'); btn.disabled=false; btn.innerHTML='<i class="fas fa-play"></i> 📱 启动'; }
 }
-
 async function stopTelethon() {
-    if (!confirm('确定停止 Telethon 监控吗？')) return;
+    if (!confirm('停止 Telethon？')) return;
     const r = await api('POST', '/api/monitor/telethon/stop');
     if (r && r.ok) { toast('Telethon 已停止'); setTimeout(()=>location.reload(),800); }
 }
-
 async function scanDialogs() {
     const r = await api('GET', '/api/monitor/telethon/dialogs');
-    if (!r || !r.dialogs) { toast('扫描失败，请先连接 Telegram', 'error'); return; }
+    if (!r || !r.dialogs) { toast('请先连接', 'error'); return; }
     let html = '';
     for (const d of r.dialogs) {
         html += `<div style="padding:10px;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
@@ -1137,13 +1320,12 @@ async function scanDialogs() {
             <button class="btn btn-primary btn-xs" onclick="quickAddGroup(${d.id},'${d.title}')" style="margin-left:8px">添加</button></div>
         </div>`;
     }
-    document.getElementById('dialogsList').innerHTML = html || '<div class="text-muted" style="padding:20px;text-align:center">无可用群组</div>';
+    document.getElementById('dialogsList').innerHTML = html || '<div class="text-muted" style="padding:30px;text-align:center">无可用群组</div>';
     document.getElementById('dialogsModal').classList.add('show');
 }
-
 async function quickAddGroup(id, title) {
     const r = await api('POST', '/api/groups/add', { group_id: id, title });
-    if (r && r.ok) toast(`已添加群组: ${title}`);
+    if (r && r.ok) toast(`已添加: ${title}`);
 }
 
 // ─── Bark ───
@@ -1155,37 +1337,36 @@ async function saveBarkKey() {
 }
 async function testBark() {
     const r = await api('POST', '/api/bark/test');
-    if (r && r.ok) toast('测试通知已发送，请查看手机');
+    if (r && r.ok) toast('测试通知已发送');
     else toast('发送失败，请检查密钥', 'error');
 }
 
 // ─── Auth ───
 async function logout() {
-    if (!confirm('确定退出登录吗？')) return;
+    if (!confirm('确定退出？')) return;
     await api('GET', '/api/logout');
     document.cookie = "session=; path=/; max-age=0";
     window.location.href = '/login';
 }
-
 async function showChangePassword() {
-    const pwd = prompt('请输入新密码（至少4位）:');
+    const pwd = prompt('新密码（至少4位）:');
     if (!pwd || pwd.length < 4) { toast('密码至少4位', 'error'); return; }
-    const confirm = prompt('再次输入新密码:');
-    if (pwd !== confirm) { toast('两次密码不一致', 'error'); return; }
+    const c = prompt('再次输入:');
+    if (pwd !== c) { toast('两次不一致', 'error'); return; }
     const r = await api('POST', '/api/set-password', { key: 'panel_password', value: pwd });
-    if (r && r.ok) { toast('密码已更新'); } else { toast('更新失败', 'error'); }
+    if (r && r.ok) toast('密码已更新');
+    else toast('更新失败', 'error');
 }
 
 // ─── Auto Refresh ───
 setInterval(async () => {
     const r = await api('GET', '/api/stats');
     if (!r || !r.stats) return;
-    const s = r.stats;
-    document.getElementById('statGroups').textContent = s.total_groups;
-    document.getElementById('statTodayMsgs').textContent = s.today_msgs;
-    document.getElementById('statActiveGroups').textContent = s.active_groups;
-    document.getElementById('statFeedback').textContent = s.today_feedback;
-    document.getElementById('statTotalMsgs').textContent = s.total_msgs;
+    document.getElementById('statGroups').textContent = r.stats.total_groups;
+    document.getElementById('statTodayMsgs').textContent = r.stats.today_msgs;
+    document.getElementById('statActiveGroups').textContent = r.stats.active_groups;
+    document.getElementById('statFeedback').textContent = r.stats.today_feedback;
+    document.getElementById('statTotalMsgs').textContent = r.stats.total_msgs;
     document.getElementById('refreshTime').textContent = new Date().toLocaleString('zh-CN');
 }, 10000);
 
