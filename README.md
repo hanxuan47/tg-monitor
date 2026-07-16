@@ -39,7 +39,7 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/YOUR_USERNAME/tg-monitor.git
+git clone https://github.com/hanxuan47/tg-monitor.git
 cd tg-monitor
 
 # 2. 启动
@@ -53,7 +53,7 @@ open http://localhost:8080
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/YOUR_USERNAME/tg-monitor.git
+git clone https://github.com/hanxuan47/tg-monitor.git
 cd tg-monitor
 
 # 2. 安装依赖（推荐使用 uv）
@@ -225,7 +225,7 @@ cronjob action=create schedule='0 22 * * *' name='tg-daily-report' \
 
 ```bash
 # 克隆
-git clone https://github.com/YOUR_USERNAME/tg-monitor.git
+git clone https://github.com/hanxuan47/tg-monitor.git
 cd tg-monitor
 
 # 安装
