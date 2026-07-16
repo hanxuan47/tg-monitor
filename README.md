@@ -8,7 +8,7 @@
 <h1 align="center">📊 TG Monitor</h1>
 <p align="center"><strong>Telegram 群聊管理监控面板</strong></p>
 <p align="center">
-  🤖 Bot 监控 · 🔑 反馈检测 · 🧠 AI 回复 · 🖼️ 图片日报
+  🤖 Bot 监控 · 🔑 反馈检测 · 🧠 AI 回复 · 🖼️ 图片日报 · 🚀 Docker 自动构建
 </p>
 
 ---

@@ -1,7 +1,7 @@
 """
 TG Monitor - Bot Monitor Module
 Uses python-telegram-bot to monitor groups via Bot API.
-Simpler setup than Telethon — just a Bot token from @BotFather.
+Simple setup — just a Bot token from @BotFather.
 
 Prerequisites:
   1. Create a bot via @BotFather on Telegram
