@@ -160,6 +160,30 @@ async def _handle_message(update: Update, context: CallbackContext):
 
     msg_date = message.date or datetime.now()
 
+    # Check for AI chat mode
+    ai_mode = await get_config("ai_chat_enabled", "false")
+    ai_key = await get_config("deepseek_key", "")
+
+    # Determine if bot should reply with AI
+    should_ai_reply = False
+    if ai_mode == "true" and ai_key:
+        # Reply to: @bot mentions, replies to bot, or all messages in AI groups
+        bot_user = await _bot_app.bot.get_me() if _bot_app else None
+        bot_username = bot_user.username if bot_user else ""
+
+        # Check if bot is mentioned (@bot or reply to bot)
+        is_mention = bot_username and f"@{bot_username}" in text
+        is_reply_to_bot = (message.reply_to_message
+                          and message.reply_to_message.from_user
+                          and message.reply_to_message.from_user.is_bot)
+
+        # Check if this group has AI enabled
+        ai_groups_str = await get_config("ai_chat_groups", "")
+        ai_groups = [int(g.strip()) for g in ai_groups_str.split(",") if g.strip()]
+
+        if is_mention or is_reply_to_bot or group_id in ai_groups:
+            should_ai_reply = True
+
     # Check for feedback keywords
     keywords = await get_feedback_keywords()
     is_feedback = False
@@ -205,6 +229,32 @@ async def _handle_message(update: Update, context: CallbackContext):
                 "matched_keyword": matched_keyword,
                 "timestamp": msg_date.isoformat(),
             })
+
+    # AI chat reply
+    if should_ai_reply and not is_feedback:  # Don't double-reply if already handled as feedback
+        try:
+            # Remove @mention from text for cleaner AI input
+            clean_text = text
+            if bot_username:
+                clean_text = clean_text.replace(f"@{bot_username}", "").strip()
+
+            # Show typing indicator
+            await _bot_app.bot.send_chat_action(chat_id=group_id, action="typing")
+
+            from ai_chat import ask_deepseek
+            reply = await ask_deepseek(api_key=ai_key, message=clean_text)
+
+            if reply:
+                await message.reply_text(reply, disable_web_page_preview=True)
+                logger.info("🤖 AI replied in %s", group_title)
+            else:
+                logger.warning("AI returned empty response for %s", group_title)
+        except Exception as e:
+            logger.error("AI chat error in %s: %s", group_title, e)
+            try:
+                await message.reply_text("🤖 AI 暂时无法回复，请稍后再试。")
+            except Exception:
+                pass
 
 
 async def _error_handler(update: Optional[Update], context: CallbackContext):
