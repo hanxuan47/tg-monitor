@@ -688,11 +688,27 @@ async def api_bot_send_report(data: GroupAdd, _ = Depends(require_auth)):
 
 
 @app.post("/api/ai/test")
-async def api_ai_test(_ = Depends(require_auth)):
-    """Test AI API connectivity."""
-    key = await get_config("deepseek_key", "")
-    url = await get_config("ai_api_url", "https://api.deepseek.com/v1")
-    model = await get_config("ai_model", "deepseek-chat")
+async def api_ai_test(data: ConfigUpdate = None, _ = Depends(require_auth)):
+    """Test AI API connectivity. Uses provided or saved config."""
+    # Allow passing key/url/model in request body for testing before saving
+    if data and data.key == "ai_test":
+        try:
+            params = json.loads(data.value)
+            key = params.get("key", "")
+            url = params.get("url", "")
+            model = params.get("model", "")
+        except (json.JSONDecodeError, TypeError):
+            key = url = model = ""
+    else:
+        key = url = model = ""
+
+    if not key:
+        key = await get_config("deepseek_key", "")
+    if not url:
+        url = await get_config("ai_api_url", "https://api.deepseek.com/v1")
+    if not model:
+        model = await get_config("ai_model", "deepseek-chat")
+
     if not key:
         return {"ok": False, "error": "请先配置 API Key"}
     from ai_chat import ask_ai

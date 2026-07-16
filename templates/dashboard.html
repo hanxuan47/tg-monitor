@@ -1667,7 +1667,24 @@ async function testAIConnection() {
     const el = document.getElementById('aiTestResult');
     el.innerHTML = '⏳ 测试中...';
     el.style.color = 'var(--text3)';
-    const r = await api('POST', '/api/ai/test');
+    // Send current form values so testing doesn't require saving first
+    const key = document.getElementById('deepseekKey').value.trim();
+    const url = document.getElementById('aiApiUrl').value.trim();
+    const sel = document.getElementById('aiModelSelect');
+    let model = sel ? sel.value : '';
+    if (!key && !url && !model) {
+        // Fallback: test with saved config only
+        const r = await api('POST', '/api/ai/test');
+        handleTestResult(r, el);
+        return;
+    }
+    const r = await api('POST', '/api/ai/test', {
+        key: 'ai_test',
+        value: JSON.stringify({ key, url, model })
+    });
+    handleTestResult(r, el);
+}
+function handleTestResult(r, el) {
     if (r && r.ok) {
         el.innerHTML = '✅ 连接成功: ' + (r.reply || '');
         el.style.color = 'var(--green)';
