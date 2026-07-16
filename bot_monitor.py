@@ -177,11 +177,7 @@ async def _handle_message(update: Update, context: CallbackContext):
                           and message.reply_to_message.from_user
                           and message.reply_to_message.from_user.is_bot)
 
-        # Check if this group has AI enabled
-        ai_groups_str = await get_config("ai_chat_groups", "")
-        ai_groups = [int(g.strip()) for g in ai_groups_str.split(",") if g.strip()]
-
-        if is_mention or is_reply_to_bot or group_id in ai_groups:
+        if is_mention or is_reply_to_bot:
             should_ai_reply = True
 
     # Check for feedback keywords
