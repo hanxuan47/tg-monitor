@@ -744,6 +744,17 @@ async def api_ai_models(_ = Depends(require_auth)):
     except Exception as e:
         return {"ok": False, "error": f"请求失败: {e}"}
 
+# ─── Casino API ──────────────────────────────────────────────────
+
+@app.get("/api/casino/stats")
+async def api_casino_stats(group_id: int = None, _ = Depends(require_auth)):
+    """Get casino stats."""
+    from casino import get_casino_stats, get_leaderboard
+    stats = await get_casino_stats(group_id)
+    lb = await get_leaderboard(group_id) if group_id else []
+    return {"ok": True, "stats": stats, "leaderboard": lb}
+
+
 # ─── Telethon Mode API ──────────────────────────────────────────
 
 @app.post("/api/monitor/telethon/start")

@@ -119,6 +119,9 @@ async def init_db():
         );
     """)
     await db.commit()
+    # Init casino tables
+    from casino import init_casino_db
+    await init_casino_db()
 
 
 # ─── Config helpers (with in-memory cache) ────────────────────

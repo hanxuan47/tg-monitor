@@ -57,6 +57,14 @@ async def start_bot(
     _bot_app.add_handler(CommandHandler("start", _cmd_start))
     _bot_app.add_handler(CommandHandler("status", _cmd_status))
     _bot_app.add_handler(CommandHandler("help", _cmd_help))
+    # Casino commands
+    _bot_app.add_handler(CommandHandler("daily", _cmd_daily))
+    _bot_app.add_handler(CommandHandler("coinflip", _cmd_coinflip))
+    _bot_app.add_handler(CommandHandler("dice", _cmd_dice))
+    _bot_app.add_handler(CommandHandler("slot", _cmd_slot))
+    _bot_app.add_handler(CommandHandler("balance", _cmd_balance))
+    _bot_app.add_handler(CommandHandler("leaderboard", _cmd_leaderboard))
+    _bot_app.add_handler(CommandHandler("casino", _cmd_casino_help))
     _bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _handle_message))
     _bot_app.add_error_handler(_error_handler)
 
@@ -389,3 +397,143 @@ async def get_group_dialogs() -> list[dict]:
     """List groups the bot has access to (from DB)."""
     from database import get_groups
     return await get_groups()
+
+
+# ─── Casino commands ───────────────────────────────────────────
+
+async def _get_user_info(update: Update) -> tuple:
+    """Extract user_id, group_id, username from update."""
+    uid = update.effective_user.id if update.effective_user else 0
+    gid = update.effective_chat.id if update.effective_chat else 0
+    name = update.effective_user.full_name or update.effective_user.username or f"User{uid}" if update.effective_user else ""
+    return uid, gid, name
+
+
+async def _cmd_casino_help(update: Update, context: CallbackContext):
+    """Show casino help."""
+    await update.message.reply_text(
+        "🎰 **赌场娱乐** 🎰\n\n"
+        "每个新用户赠送 500 筹码作为启动资金！\n\n"
+        "📋 **命令列表：**\n"
+        "`/daily` — 每日签到领 100 筹码 🎁\n"
+        "`/coinflip <筹码> <正面|反面>` — 猜硬币，2倍 🪙\n"
+        "`/dice <筹码> <大|小|数字>` — 掷骰子，1.8-5倍 🎲\n"
+        "`/slot <筹码>` — 老虎机，最高10倍 🎰\n"
+        "`/balance` — 查看余额 💰\n"
+        "`/leaderboard` — 群排行榜 🏆\n"
+        "`/casino` — 本帮助\n\n"
+        "规则：单次下注上限 10,000 筹码",
+        parse_mode="Markdown",
+    )
+
+
+async def _cmd_daily(update: Update, context: CallbackContext):
+    """Daily bonus."""
+    uid, gid, name = await _get_user_info(update)
+    from casino import daily_bonus
+    result = await daily_bonus(uid, gid, name)
+    if result["ok"]:
+        await update.message.reply_text(
+            f"🎁 每日签到成功！+{result['bonus']} 筹码\n"
+            f"💰 当前余额：{result['balance']}"
+        )
+    else:
+        await update.message.reply_text(result["msg"])
+
+
+async def _cmd_coinflip(update: Update, context: CallbackContext):
+    """Coin flip: /coinflip <bet> <正面|反面>"""
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text("用法：/coinflip <筹码> <正面|反面>")
+        return
+    try:
+        bet = int(args[0])
+    except ValueError:
+        await update.message.reply_text("❌ 无效的筹码数")
+        return
+    choice = args[1]
+    uid, gid, name = await _get_user_info(update)
+    from casino import coinflip
+    result = await coinflip(uid, gid, bet, choice, name)
+    if result["ok"]:
+        await update.message.reply_text(
+            f"{result['msg']}\n💰 余额：{result['balance']}"
+        )
+    else:
+        await update.message.reply_text(result["msg"])
+
+
+async def _cmd_dice(update: Update, context: CallbackContext):
+    """Dice: /dice <bet> [大|小|数字]"""
+    args = context.args
+    if len(args) < 1:
+        await update.message.reply_text("用法：/dice <筹码> [大|小|1-6]")
+        return
+    try:
+        bet = int(args[0])
+    except ValueError:
+        await update.message.reply_text("❌ 无效的筹码数")
+        return
+    guess = args[1] if len(args) > 1 else None
+    uid, gid, name = await _get_user_info(update)
+    from casino import dice
+    result = await dice(uid, gid, bet, guess, name)
+    if result["ok"]:
+        msg = result["msg"]
+        if "balance" in result:
+            msg += f"\n💰 余额：{result['balance']}"
+        await update.message.reply_text(msg)
+    else:
+        await update.message.reply_text(result["msg"])
+
+
+async def _cmd_slot(update: Update, context: CallbackContext):
+    """Slot machine: /slot <bet>"""
+    args = context.args
+    if len(args) < 1:
+        await update.message.reply_text("用法：/slot <筹码>")
+        return
+    try:
+        bet = int(args[0])
+    except ValueError:
+        await update.message.reply_text("❌ 无效的筹码数")
+        return
+    uid, gid, name = await _get_user_info(update)
+    from casino import slot_machine
+    result = await slot_machine(uid, gid, bet, name)
+    if result["ok"]:
+        await update.message.reply_text(
+            f"{result['msg']}\n💰 余额：{result['balance']}"
+        )
+    else:
+        await update.message.reply_text(result["msg"])
+
+
+async def _cmd_balance(update: Update, context: CallbackContext):
+    """Check balance."""
+    uid, gid, name = await _get_user_info(update)
+    from casino import get_balance
+    balance = await get_balance(uid, gid)
+    await update.message.reply_text(
+        f"💰 **{name}** 的余额\n"
+        f"当前筹码：**{balance}**",
+        parse_mode="Markdown",
+    )
+
+
+async def _cmd_leaderboard(update: Update, context: CallbackContext):
+    """Show group leaderboard."""
+    uid, gid, name = await _get_user_info(update)
+    from casino import get_leaderboard
+    top = await get_leaderboard(gid)
+    if not top:
+        await update.message.reply_text("🏆 还没有玩家数据，来玩一局吧！")
+        return
+    lines = ["🏆 **群聊赌场排行榜**\n"]
+    medals = ["🥇", "🥈", "🥉"]
+    for i, u in enumerate(top):
+        medal = medals[i] if i < 3 else f"{i+1}."
+        uname = u.get("username", f"用户{u['user_id']}")
+        lines.append(f"{medal} {uname} — {u['balance']} 筹码")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")

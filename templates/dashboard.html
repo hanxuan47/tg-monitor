@@ -759,6 +759,10 @@
         <a class="nav-item" data-page="ai" onclick="switchPage('ai')">
             <i class="fas fa-robot"></i> AI 助手
         </a>
+        <div class="nav-section">娱乐</div>
+        <a class="nav-item" data-page="casino" onclick="switchPage('casino')">
+            <i class="fas fa-dice"></i> 赌场
+        </a>
     </nav>
     <div class="sidebar-footer">
         <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
@@ -1301,6 +1305,42 @@
         </div>
     </div>
 
+<!-- ========== PAGE: Casino ========== -->
+<div class="page" id="page-casino">
+    <div class="page-header">
+        <h2><i class="fas fa-dice" style="color:var(--orange)"></i> 赌场娱乐</h2>
+        <span style="font-size:12px;color:var(--text3)">群聊活跃气氛 · 虚拟筹码</span>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><i class="fas fa-chart-bar"></i> 全局统计</div>
+        <div class="dashboard-grid" style="grid-template-columns: repeat(3, 1fr)">
+            <div class="stat-card">
+                <div class="stat-icon" style="background:var(--blue);color:white">🎮</div>
+                <div class="stat-info"><span class="stat-value" id="casinoTotalGames">0</span><span class="stat-label">总局数</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background:var(--green);color:white">📤</div>
+                <div class="stat-info"><span class="stat-value" id="casinoTotalBet">0</span><span class="stat-label">总下注</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background:var(--orange);color:white">📥</div>
+                <div class="stat-info"><span class="stat-value" id="casinoTotalPayout">0</span><span class="stat-label">总派彩</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><i class="fas fa-trophy"></i> 排行榜 🏆</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:10px">选择群组查看排行榜</div>
+        <div class="form-row" style="gap:8px">
+            <select id="casinoGroupSelect" onchange="loadCasinoLeaderboard()" style="flex:1;font-size:13px;padding:8px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--rs);color:var(--text)">
+                <option value="">— 选择群组 —</option>
+            </select>
+        </div>
+        <div id="casinoLeaderboard" style="margin-top:12px;font-size:13px;line-height:2"></div>
+    </div>
+</div>
 
 </main>
 
@@ -1782,6 +1822,45 @@ async function saveAIGroups() {
     await api('POST', '/api/config', { key: 'ai_chat_groups', value: ids });
 }
 
+// ─── Casino ───
+async function loadCasinoPage() {
+    // Load stats
+    const sr = await api('GET', '/api/casino/stats');
+    if (sr && sr.ok) {
+        document.getElementById('casinoTotalGames').textContent = sr.stats.total_games;
+        document.getElementById('casinoTotalBet').textContent = sr.stats.total_bet;
+        document.getElementById('casinoTotalPayout').textContent = sr.stats.total_payout;
+    }
+    // Populate group selector
+    const gr = await api('GET', '/api/groups');
+    const sel = document.getElementById('casinoGroupSelect');
+    if (gr && gr.groups) {
+        sel.innerHTML = '<option value="">— 所有群组 —</option>'
+            + gr.groups.map(g => `<option value="${g.group_id}">${g.title}</option>`).join('');
+    }
+    loadCasinoLeaderboard();
+}
+async function loadCasinoLeaderboard() {
+    const gid = document.getElementById('casinoGroupSelect').value;
+    const params = gid ? `?group_id=${gid}` : '';
+    const r = await api('GET', '/api/casino/stats' + params);
+    const el = document.getElementById('casinoLeaderboard');
+    if (!r || !r.ok) { el.innerHTML = '<span style="color:var(--red)">加载失败</span>'; return; }
+    if (!r.leaderboard || !r.leaderboard.length) {
+        el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">🏆 暂无排行数据</div>';
+        return;
+    }
+    const medals = ['🥇', '🥈', '🥉'];
+    let html = '<table style="width:100%;border-collapse:collapse"><tr style="border-bottom:1px solid var(--border);font-size:12px;color:var(--text3)"><th style="padding:6px">#</th><th style="text-align:left;padding:6px">玩家</th><th style="text-align:right;padding:6px">筹码</th></tr>';
+    r.leaderboard.forEach((u, i) => {
+        const medal = medals[i] || `${i+1}.`;
+        const name = u.username || `用户${u.user_id}`;
+        html += `<tr${i<3?' style="font-weight:600"':''}><td style="padding:4px 6px;text-align:center">${medal}</td><td style="padding:4px 6px">${name}</td><td style="padding:4px 6px;text-align:right;color:var(--orange)">${u.balance}</td></tr>`;
+    });
+    html += '</table>';
+    el.innerHTML = html;
+}
+
 // Load AI config on page switch
 const origSwitchPage = switchPage;
 switchPage = function(page) {
@@ -1793,6 +1872,7 @@ switchPage = function(page) {
         refreshMessages();
         setTimeout(startAutoRefresh, 200);
     }
+    if (page === 'casino') setTimeout(loadCasinoPage, 100);
 };
 // Load auto-reply on page load
 (async function() {
