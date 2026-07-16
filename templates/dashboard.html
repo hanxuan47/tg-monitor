@@ -772,7 +772,7 @@
         </div>
         {% if has_password %}
         <div style="display:flex;gap:6px;align-items:center;border-top:1px solid var(--border);padding-top:8px">
-            <span style="font-size:11px;color:var(--text3);cursor:pointer;display:flex;align-items:center;gap:4px" onclick="showChangePassword()"><i class="fas fa-key"></i> 密码</span>
+            <span style="font-size:11px;color:var(--text3);cursor:pointer;display:flex;align-items:center;gap:4px" onclick="switchPage('security')"><i class="fas fa-shield-alt"></i> 安全</span>
             <span style="font-size:11px;color:var(--text3);cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:auto" onclick="logout()"><i class="fas fa-sign-out-alt"></i> 退出</span>
         </div>
         {% endif %}
@@ -1148,6 +1148,47 @@
     </div>
 </div>
 
+<!-- ========== PAGE: Security ========== -->
+<div class="page" id="page-security">
+    <div class="page-header">
+        <h2><i class="fas fa-shield-alt" style="color:var(--green)"></i> 安全设置</h2>
+    </div>
+    <div class="dashboard-grid" style="grid-template-columns:1fr 1fr">
+        <div class="card">
+            <div class="card-title"><i class="fas fa-key"></i> 面板密码</div>
+            <div class="form-group">
+                <label>当前密码状态</label>
+                <p id="pwdStatus" style="font-size:13px;color:var(--green)">✅ 已设置</p>
+            </div>
+            <div class="form-group">
+                <label>修改密码</label>
+                <input type="password" id="newPanelPwd" placeholder="新密码（至少4位）" minlength="4">
+            </div>
+            <button class="btn btn-primary" onclick="changePanelPassword()"><i class="fas fa-save"></i> 修改密码</button>
+        </div>
+        <div class="card">
+            <div class="card-title"><i class="fas fa-google"></i> 谷歌验证器 (2FA)</div>
+            <div id="totpStatus" style="font-size:13px;color:var(--text2);margin-bottom:12px">检查中...</div>
+            <div id="totpSetupArea">
+                <div id="totpQrArea" style="display:none;text-align:center;margin-bottom:12px">
+                    <img id="totpQr" style="width:180px;height:180px;border-radius:8px;background:#fff;padding:8px">
+                    <p style="font-size:12px;color:var(--text3);margin-top:6px">用 Google Authenticator 扫描</p>
+                </div>
+                <div class="form-row" id="totpVerifyArea" style="display:none">
+                    <div class="form-group" style="margin-bottom:0;flex:1">
+                        <input type="text" id="totpVerifyCode" placeholder="输入验证码验证" inputmode="numeric">
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="verifyTotp()">验证</button>
+                </div>
+                <div class="btn-group" id="totpActions">
+                    <button class="btn btn-green btn-sm" onclick="setupTotp()"><i class="fas fa-qrcode"></i> 设置验证器</button>
+                    <button class="btn btn-red btn-sm" onclick="disableTotp()"><i class="fas fa-trash"></i> 关闭 2FA</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ========== PAGE: AI Assistant ========== -->
 <div class="page" id="page-ai">
     <div class="page-header">
@@ -1181,7 +1222,9 @@
                 <input type="text" id="aiModel" value="deepseek-chat" style="font-size:12px" placeholder="deepseek-chat">
             </div>
             <button class="btn btn-ghost btn-sm" onclick="saveAIConfig()" style="align-self:flex-end">保存设置</button>
+            <button class="btn btn-green btn-sm" onclick="testAIConnection()" style="align-self:flex-end"><i class="fas fa-plug"></i> 测试连接</button>
         </div>
+        <div id="aiTestResult" style="margin-top:8px;font-size:12px;color:var(--text3)"></div>
         <div style="margin-top:12px">
             <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:6px">选择启用了 AI 的群组（@Bot 或回复 Bot 自动触发）:</label>
             <div id="aiChatGroups" style="display:flex;flex-wrap:wrap;gap:8px 16px"></div>
@@ -1588,6 +1631,20 @@ async function saveAIConfig() {
     toast('AI 配置已保存 ✅');
 }
 
+async function testAIConnection() {
+    const el = document.getElementById('aiTestResult');
+    el.innerHTML = '⏳ 测试中...';
+    el.style.color = 'var(--text3)';
+    const r = await api('POST', '/api/ai/test');
+    if (r && r.ok) {
+        el.innerHTML = '✅ 连接成功: ' + (r.reply || '');
+        el.style.color = 'var(--green)';
+    } else {
+        el.innerHTML = '❌ ' + (r?.error || '连接失败');
+        el.style.color = 'var(--red)';
+    }
+}
+
 async function loadAIConfig() {
     const r = await api('GET', '/api/config?key=ai_chat_enabled');
     const keyR = await api('GET', '/api/config?key=deepseek_key');
@@ -1631,6 +1688,7 @@ const origSwitchPage = switchPage;
 switchPage = function(page) {
     origSwitchPage(page);
     if (page === 'ai') setTimeout(loadAIConfig, 100);
+    if (page === 'security') setTimeout(loadSecurityPage, 100);
 };
 // Load auto-reply on page load
 (async function() {
@@ -1649,13 +1707,48 @@ async function logout() {
     window.location.href = '/login';
 }
 async function showChangePassword() {
-    const pwd = prompt('新密码（至少4位）:');
+    document.getElementById('newPanelPwd').value = '';
+    switchPage('security');
+}
+async function changePanelPassword() {
+    const pwd = document.getElementById('newPanelPwd').value;
     if (!pwd || pwd.length < 4) { toast('密码至少4位', 'error'); return; }
-    const c = prompt('再次输入:');
-    if (pwd !== c) { toast('两次不一致', 'error'); return; }
     const r = await api('POST', '/api/set-password', { key: 'panel_password', value: pwd });
-    if (r && r.ok) toast('密码已更新');
-    else toast('更新失败', 'error');
+    if (r && r.ok) { toast('密码已更新 ✅'); document.getElementById('pwdStatus').textContent = '✅ 已设置';
+    } else { toast('更新失败', 'error'); }
+}
+
+// ─── 2FA ───
+async function loadSecurityPage() {
+    const r = await api('GET', '/api/2fa/status');
+    const el = document.getElementById('totpStatus');
+    if (r) el.textContent = r.enabled ? '✅ 已启用' : '❌ 未启用';
+}
+async function setupTotp() {
+    const r = await api('POST', '/api/2fa/setup');
+    if (!r || !r.ok) { toast('获取密钥失败', 'error'); return; }
+    document.getElementById('totpQr').src = r.qr;
+    document.getElementById('totpQrArea').style.display = 'block';
+    document.getElementById('totpVerifyArea').style.display = 'flex';
+    toast('请用 Google Authenticator 扫描二维码');
+}
+async function verifyTotp() {
+    const code = document.getElementById('totpVerifyCode').value.trim();
+    if (!code) { toast('请输入验证码', 'error'); return; }
+    const r = await api('POST', '/api/2fa/verify', { key: 'totp', value: code });
+    if (r && r.ok) {
+        toast('2FA 已启用 ✅');
+        document.getElementById('totpQrArea').style.display = 'none';
+        document.getElementById('totpVerifyArea').style.display = 'none';
+        loadSecurityPage();
+    } else { toast(r?.error || '验证失败', 'error'); }
+}
+async function disableTotp() {
+    const pwd = prompt('请输入面板密码以关闭 2FA:');
+    if (!pwd) return;
+    const r = await api('POST', '/api/2fa/disable', { key: 'password', value: pwd });
+    if (r && r.ok) { toast('2FA 已关闭'); loadSecurityPage(); }
+    else { toast(r?.error || '关闭失败', 'error'); }
 }
 
 // ─── Auto Refresh ─── (30s interval to reduce CPU)
@@ -1767,7 +1860,7 @@ async function checkMedia() {
     const type = document.getElementById('mediaType').value;
     const r = await api('GET', `/api/media/preview?type=${type}`);
     const el = document.getElementById('mediaResult');
-    if (!r || !r.ok) { el.innerHTML = `<span style="color:var(--red)">${r?.error||'查询失败'}</span>`; return; }
+    if (!r || !r.ok) { el.innerHTML = `<span style="color:var(--red)">❌ ${r?.error||'查询失败，请检查 TMDB Key 是否配置正确'}</span>`; return; }
     el.innerHTML = `<div style="color:var(--text3);margin-bottom:8px">共 ${r.count} 条结果</div>`;
     for (const item of r.items) {
         const stars = '⭐'.repeat(Math.max(1, Math.round(item.vote / 2)));

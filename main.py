@@ -672,15 +672,33 @@ async def api_media_check(data: MediaQuery, _ = Depends(require_auth)):
 async def api_media_preview(type: str = "trending", _ = Depends(require_auth)):
     api_key = await get_config("tmdb_key", "")
     if not api_key:
-        return {"ok": False, "error": "请先配置 TMDB API Key"}
+        return {"ok": False, "error": "请先配置 TMDB API Key (themoviedb.org)"}
     items = []
-    if type == "trending":
-        items = await get_trending(api_key, "all", "day")
-    elif type == "nowplaying":
-        items = await get_now_playing(api_key)
-    elif type == "ontv":
-        items = await get_on_the_air(api_key)
+    try:
+        if type == "trending":
+            items = await get_trending(api_key, "all", "day")
+        elif type == "nowplaying":
+            items = await get_now_playing(api_key)
+        elif type == "ontv":
+            items = await get_on_the_air(api_key)
+    except Exception as e:
+        return {"ok": False, "error": f"TMDB 请求失败: {e}"}
     return {"ok": True, "count": len(items), "items": items[:10]}
+
+
+@app.post("/api/ai/test")
+async def api_ai_test(_ = Depends(require_auth)):
+    """Test AI API connectivity."""
+    key = await get_config("deepseek_key", "")
+    url = await get_config("ai_api_url", "https://api.deepseek.com/v1")
+    model = await get_config("ai_model", "deepseek-chat")
+    if not key:
+        return {"ok": False, "error": "请先配置 API Key"}
+    from ai_chat import ask_ai
+    reply = await ask_ai(api_key=key, api_url=url, model=model, message="你好，请回复'连接正常'这4个字")
+    if reply:
+        return {"ok": True, "reply": reply[:100]}
+    return {"ok": False, "error": "API 无响应，请检查接口地址和 Key"}
 
 # ─── Telethon Mode API ──────────────────────────────────────────
 
