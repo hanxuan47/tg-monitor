@@ -326,7 +326,7 @@ async def _delete_job(context: CallbackContext):
             message_id=data["message_id"],
         )
     except Exception as e:
-        logger.debug("Delete job failed (msg may already be deleted): %s", e)
+        logger.warning("删除消息失败(可能已被删除): %s", e)
 
 
 async def _error_handler(update: Optional[Update], context: CallbackContext):
