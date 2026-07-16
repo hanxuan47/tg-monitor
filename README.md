@@ -45,18 +45,15 @@ cd tg-monitor
 # 2. 复制环境变量（按需修改）
 cp .env.example .env
 
-# 3. 构建并启动
+# 3. 启动（自动拉取镜像）
 docker compose up -d
 
 # 4. 访问
 open http://localhost:8080
 ```
 
-> `docker-compose.yml` 使用 1Panel 应用商店格式，支持通过 `.env` 文件配置：
-> - `CONTAINER_NAME` — 容器名称
-> - `CPUS` / `MEMORY_LIMIT` — 资源限制
-> - `HOST_IP` / `PANEL_APP_PORT_HTTP` — 监听地址和端口
-> - 数据持久化在 `./data` 目录
+> 镜像已发布到 Docker Hub `mrtangv/tg-monitor:latest`，无需本地构建。
+> 通过 `.env` 文件配置端口、资源限制等参数。数据持久化在 `./data` 目录。
 
 ### 方式二：手动部署
 

@@ -5,8 +5,7 @@ networks:
 services:
     tg-monitor:
         container_name: ${CONTAINER_NAME}
-        build:
-            context: .
+        image: mrtangv/tg-monitor:latest
         deploy:
             resources:
                 limits:
