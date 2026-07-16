@@ -14,16 +14,19 @@ TMDB_API_BASE = "https://api.themoviedb.org/3"
 POSTER_BASE = "https://image.tmdb.org/t/p/w400"
 
 
-async def tmdb_get(api_key: str, endpoint: str, params: dict = None) -> Optional[dict]:
-    """Make a request to TMDB API."""
-    if not api_key:
+async def tmdb_get(token: str, endpoint: str, params: dict = None) -> Optional[dict]:
+    """Make a request to TMDB API using Bearer token (v4)."""
+    if not token:
         return None
     params = params or {}
-    params["api_key"] = api_key
     params["language"] = "zh-CN"
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(f"{TMDB_API_BASE}/{endpoint}", params=params)
+            resp = await client.get(
+                f"{TMDB_API_BASE}/{endpoint}",
+                params=params,
+                headers={"Authorization": f"Bearer {token}"},
+            )
             if resp.status_code == 200:
                 return resp.json()
             logger.warning("TMDB API error: %s %s", resp.status_code, resp.text)
@@ -33,9 +36,8 @@ async def tmdb_get(api_key: str, endpoint: str, params: dict = None) -> Optional
         return None
 
 
-async def get_trending(api_key: str, media_type: str = "all", time_window: str = "day") -> list:
-    """Get trending movies/TV shows."""
-    data = await tmdb_get(api_key, f"trending/{media_type}/{time_window}")
+async def get_trending(token: str, media_type: str = "all", time_window: str = "day") -> list:
+    data = await tmdb_get(token, f"trending/{media_type}/{time_window}")
     if not data:
         return []
     results = []
@@ -55,9 +57,9 @@ async def get_trending(api_key: str, media_type: str = "all", time_window: str =
     return results
 
 
-async def get_now_playing(api_key: str, page: int = 1) -> list:
+async def get_now_playing(token: str, page: int = 1) -> list:
     """Get movies now playing in theaters."""
-    data = await tmdb_get(api_key, "movie/now_playing", {"page": page, "region": "CN"})
+    data = await tmdb_get(token, "movie/now_playing", {"page": page, "region": "CN"})
     if not data:
         return []
     results = []
@@ -77,7 +79,7 @@ async def get_now_playing(api_key: str, page: int = 1) -> list:
 
 async def get_on_the_air(api_key: str) -> list:
     """Get TV shows airing today."""
-    data = await tmdb_get(api_key, "tv/on_the_air")
+    data = await tmdb_get(token, "tv/on_the_air")
     if not data:
         return []
     results = []
