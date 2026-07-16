@@ -213,8 +213,10 @@ async def _handle_message(update: Update, context: CallbackContext):
         try:
             reply_text = await get_config("auto_reply", "✅ 已收到您的反馈，管理员会尽快处理。")
             if reply_text:
-                await message.reply_text(reply_text)
+                sent = await message.reply_text(reply_text)
                 logger.info("🤖 Auto-replied to feedback in %s", group_title)
+                # Auto-delete
+                await _schedule_delete(context, sent)
         except Exception as e:
             logger.warning("Auto-reply failed: %s", e)
 
@@ -245,8 +247,9 @@ async def _handle_message(update: Update, context: CallbackContext):
             reply = await ask_deepseek(api_key=ai_key, message=clean_text)
 
             if reply:
-                await message.reply_text(reply, disable_web_page_preview=True)
+                sent = await message.reply_text(reply, disable_web_page_preview=True)
                 logger.info("🤖 AI replied in %s", group_title)
+                await _schedule_delete(context, sent)
             else:
                 logger.warning("AI returned empty response for %s", group_title)
         except Exception as e:
@@ -255,6 +258,37 @@ async def _handle_message(update: Update, context: CallbackContext):
                 await message.reply_text("🤖 AI 暂时无法回复，请稍后再试。")
             except Exception:
                 pass
+
+
+async def _schedule_delete(context: CallbackContext, message):
+    """Schedule auto-deletion of a bot message after configured delay."""
+    try:
+        auto_delete = await get_config("auto_delete", "true")
+        if auto_delete != "true":
+            return
+        seconds = int(await get_config("auto_delete_seconds", "30"))
+        if seconds <= 0:
+            return
+        context.job_queue.run_once(
+            _delete_job, seconds, data={
+                "chat_id": message.chat_id,
+                "message_id": message.message_id,
+            }
+        )
+    except Exception as e:
+        logger.warning("Schedule delete failed: %s", e)
+
+
+async def _delete_job(context: CallbackContext):
+    """Job callback to delete a message."""
+    try:
+        data = context.job.data
+        await context.bot.delete_message(
+            chat_id=data["chat_id"],
+            message_id=data["message_id"],
+        )
+    except Exception as e:
+        logger.debug("Delete job failed (msg may already be deleted): %s", e)
 
 
 async def _error_handler(update: Optional[Update], context: CallbackContext):
