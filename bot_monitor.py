@@ -246,3 +246,38 @@ async def get_bot_info():
 
 def is_running() -> bool:
     return _monitoring and _bot_app is not None
+
+
+async def send_to_group(group_id: int, text: str) -> bool:
+    """Send a text message to a specific group via the bot."""
+    if not _bot_app or not _bot_app.bot:
+        logger.warning("Bot not running, cannot send message")
+        return False
+    try:
+        await _bot_app.bot.send_message(chat_id=group_id, text=text)
+        logger.info("Message sent to group %s", group_id)
+        return True
+    except Exception as e:
+        logger.error("Failed to send message to group %s: %s", group_id, e)
+        return False
+
+
+async def send_photo_to_group(group_id: int, photo_path: str, caption: str = "") -> bool:
+    """Send a photo/image to a specific group via the bot."""
+    if not _bot_app or not _bot_app.bot:
+        logger.warning("Bot not running, cannot send photo")
+        return False
+    try:
+        with open(photo_path, "rb") as f:
+            await _bot_app.bot.send_photo(chat_id=group_id, photo=f, caption=caption)
+        logger.info("Photo sent to group %s", group_id)
+        return True
+    except Exception as e:
+        logger.error("Failed to send photo to group %s: %s", group_id, e)
+        return False
+
+
+async def get_group_dialogs() -> list[dict]:
+    """List groups the bot has access to (from DB)."""
+    from database import get_groups
+    return await get_groups()

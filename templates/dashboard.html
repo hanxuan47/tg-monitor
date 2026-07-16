@@ -227,6 +227,9 @@
         .stat-card .icon.blue { background: rgba(91,141,239,.15); color: var(--accent-blue); }
         .stat-card .icon.green { background: rgba(76,217,100,.15); color: var(--accent-green); }
         .stat-card .icon.orange { background: rgba(255,149,0,.15); color: var(--accent-orange); }
+        select { cursor: pointer; }
+        select option { background: var(--bg-card); color: var(--text-primary); }
+        textarea:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px var(--accent-blue-glow); }
         .stat-card .icon.red { background: rgba(255,71,87,.15); color: var(--accent-red); }
         .stat-card .icon.purple { background: rgba(168,85,247,.15); color: var(--accent-purple); }
         .stat-card .label {
@@ -724,6 +727,10 @@
         <a class="nav-item" data-page="bark" onclick="switchPage('bark')">
             <i class="fas fa-bolt"></i> Bark 通知
         </a>
+        <div class="nav-section">AI</div>
+        <a class="nav-item" data-page="ai" onclick="switchPage('ai')">
+            <i class="fas fa-robot"></i> AI 助手
+        </a>
     </nav>
     <div class="sidebar-footer">
         <div style="margin-bottom:8px">
@@ -1096,6 +1103,64 @@
     </div>
 </div>
 
+<!-- ========== PAGE: AI Assistant ========== -->
+<div class="page" id="page-ai">
+    <div class="page-header">
+        <h2><i class="fas fa-robot" style="color:var(--accent-purple)"></i> AI 助手</h2>
+        <span style="font-size:12px;color:var(--text-muted)">通过 Bot 与群聊交互</span>
+    </div>
+
+    <div class="dashboard-grid" style="grid-template-columns: 1fr 1fr">
+        <div class="card">
+            <div class="card-title"><i class="fas fa-comment-dots"></i> 发送消息</div>
+            <div class="form-group">
+                <label>目标群组</label>
+                <select id="aiGroupSelect">
+                    <option value="">请先选择...</option>
+                    {% for g in groups %}
+                    <option value="{{ g.group_id }}">{{ g.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>消息内容</label>
+                <textarea id="aiMessageInput" rows="3" placeholder="输入要发送的消息..." style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;outline:none;resize:vertical"></textarea>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="aiSendMessage()"><i class="fas fa-paper-plane"></i> 发送消息</button>
+                <button class="btn btn-green" onclick="aiSendReport()"><i class="fas fa-file-alt"></i> 发送日报</button>
+            </div>
+            <div id="aiResult" style="margin-top:12px;font-size:13px;color:var(--text-secondary)"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><i class="fas fa-list"></i> 快捷操作</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+                <button class="btn btn-ghost" onclick="aiListGroups()" style="justify-content:flex-start">
+                    <i class="fas fa-users"></i> 列出所有群组及统计
+                </button>
+                <button class="btn btn-ghost" onclick="aiSendReportAll()" style="justify-content:flex-start">
+                    <i class="fas fa-file-image"></i> 推送日报图片到所有群聊
+                </button>
+                <button class="btn btn-ghost" onclick="aiFeedbackSummary()" style="justify-content:flex-start">
+                    <i class="fas fa-bell"></i> 今日反馈汇总
+                </button>
+                <button class="btn btn-ghost" onclick="aiActiveGroups()" style="justify-content:flex-start">
+                    <i class="fas fa-rocket"></i> 活跃群聊排行
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Log -->
+    <div class="card full">
+        <div class="card-title"><i class="fas fa-terminal"></i> 执行日志</div>
+        <div id="aiLog" style="max-height:400px;overflow-y:auto;font-size:13px;line-height:1.8;font-family:monospace;background:var(--bg-input);border-radius:var(--radius-sm);padding:16px">
+            <span style="color:var(--text-muted)">等待操作...</span>
+        </div>
+    </div>
+</div>
+
 </main>
 
 <!-- ─── Toast ─── -->
@@ -1405,6 +1470,92 @@ setInterval(async () => {
     document.getElementById('statTotalMsgs').textContent = r.stats.total_msgs;
     document.getElementById('refreshTime').textContent = new Date().toLocaleString('zh-CN');
 }, 30000);
+
+// ─── AI Assistant ───
+function aiLog(msg, type='info') {
+    const log = document.getElementById('aiLog');
+    const time = new Date().toLocaleTimeString('zh-CN');
+    const colors = {info: 'var(--accent-blue)', success: 'var(--accent-green)', error: 'var(--accent-red)', text: 'var(--text-primary)'};
+    const line = document.createElement('div');
+    line.innerHTML = `<span style="color:var(--text-muted)">[${time}]</span> <span style="color:${colors[type]||colors.info}">${msg}</span>`;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+}
+
+async function aiSendMessage() {
+    const sel = document.getElementById('aiGroupSelect');
+    const gid = parseInt(sel.value);
+    const text = document.getElementById('aiMessageInput').value.trim();
+    if (!gid) { aiLog('请选择目标群组', 'error'); return; }
+    if (!text) { aiLog('请输入消息内容', 'error'); return; }
+    const name = sel.options[sel.selectedIndex].text;
+    aiLog(`📤 发送消息到「${name}」: ${text.substring(0,50)}...`);
+    const r = await api('POST', '/api/monitor/bot/send', { group_id: gid, text });
+    if (r && r.ok) { aiLog(`✅ 消息已发送到「${name}」`, 'success'); document.getElementById('aiMessageInput').value = ''; }
+    else { aiLog(`❌ 发送失败: ${r?.error||'未知'}`, 'error'); }
+}
+
+async function aiSendReport() {
+    const sel = document.getElementById('aiGroupSelect');
+    const gid = parseInt(sel.value);
+    if (!gid) { aiLog('请选择目标群组', 'error'); return; }
+    const name = sel.options[sel.selectedIndex].text;
+    aiLog(`📊 生成并推送日报到「${name}」...`);
+    const r = await api('POST', '/api/monitor/bot/send-report', { group_id: gid });
+    if (r && r.ok) { aiLog(`✅ 日报已推送到「${name}」`, 'success');
+        if (r.report) aiLog(`💬 ${r.report.msg_count}条 | 👥 ${r.report.active_users}人 | 📩 ${r.report.feedback_count}条反馈`, 'text'); }
+    else { aiLog(`❌ 推送失败: ${r?.error||'未知'}`, 'error'); }
+}
+
+async function aiSendReportAll() {
+    const gr = await api('GET', '/api/groups');
+    if (!gr || !gr.groups || !gr.groups.length) { aiLog('没有群组', 'error'); return; }
+    aiLog(`📊 开始推送日报到 ${gr.groups.length} 个群聊...`);
+    let ok = 0, fail = 0;
+    for (const g of gr.groups) {
+        aiLog(`  → ${g.title||g.group_id}...`);
+        const r = await api('POST', '/api/monitor/bot/send-report', { group_id: g.group_id });
+        if (r && r.ok) ok++; else fail++;
+    }
+    aiLog(`✅ 完成: ${ok}成功, ${fail}失败`, ok > 0 ? 'success' : 'error');
+}
+
+async function aiListGroups() {
+    const gr = await api('GET', '/api/groups');
+    const st = await api('GET', '/api/stats');
+    if (!gr || !gr.groups) { aiLog('没有群组', 'error'); return; }
+    aiLog(`📋 共 ${gr.groups.length} 个监控群组`, 'text');
+    for (const g of gr.groups) {
+        aiLog(`  • ${g.title} (ID: ${g.group_id}) — 成员: ${g.member_count||'?'}`, 'text');
+    }
+    if (st) aiLog(`📊 今日: ${st.stats.today_msgs}条消息, ${st.stats.active_groups}个活跃群, ${st.stats.today_feedback}条反馈`, 'text');
+}
+
+async function aiFeedbackSummary() {
+    const r = await api('GET', '/api/messages?days=1');
+    if (!r || !r.messages) { aiLog('暂无消息', 'text'); return; }
+    const fb = r.messages.filter(m => m.is_feedback);
+    aiLog(`🔔 今日共 ${fb.length} 条反馈`, fb.length > 0 ? 'text' : 'text');
+    for (const m of fb.slice(0,10)) {
+        aiLog(`  • [${m.group_title}] ${m.sender_name}: ${m.text.substring(0,60)}`, 'text');
+    }
+}
+
+async function aiActiveGroups() {
+    const r = await api('GET', '/api/messages?days=1');
+    const gr = await api('GET', '/api/groups');
+    if (!r || !r.messages) { aiLog('暂无数据', 'text'); return; }
+    const counts = {};
+    for (const m of r.messages) {
+        const key = m.group_title || m.group_id;
+        counts[key] = (counts[key] || 0) + 1;
+    }
+    const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+    aiLog(`🚀 今日活跃群聊排行 (${sorted.length}个)`, 'text');
+    for (const [name, count] of sorted.slice(0,10)) {
+        aiLog(`  ${'▇'.repeat(Math.min(count,20))} ${name} (${count}条)`, 'text');
+    }
+}
 
 // ─── Modal overlay close ───
 document.querySelectorAll('.modal-overlay').forEach(el => {

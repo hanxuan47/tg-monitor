@@ -499,6 +499,62 @@ async def api_bot_info():
         return {"ok": True, "info": info}
     return {"ok": False, "error": "Bot not running"}
 
+
+class BotSendMsg(BaseModel):
+    group_id: int
+    text: str = ""
+    image: str = ""
+
+
+@app.post("/api/monitor/bot/send")
+async def api_bot_send(data: BotSendMsg):
+    """Send a message or report image to a group via the bot."""
+    if not monitor._bot_module or not monitor._bot_module.is_running():
+        return {"ok": False, "error": "Bot not running"}
+    try:
+        if data.image:
+            ok = await monitor._bot_module.send_photo_to_group(data.group_id, data.image, data.text)
+        else:
+            ok = await monitor._bot_module.send_to_group(data.group_id, data.text)
+        return {"ok": ok}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/monitor/bot/send-report")
+async def api_bot_send_report(data: GroupAdd):
+    """Generate and send daily report image to a group."""
+    if not monitor._bot_module or not monitor._bot_module.is_running():
+        return {"ok": False, "error": "Bot not running"}
+    try:
+        # Generate report
+        report = await generate_report(data.group_id)
+        top_msgs = await get_messages_by_group(data.group_id, days=1)
+        img_bytes = generate_report_image(
+            group_title=report["group_title"],
+            report_date=datetime.now().strftime("%Y-%m-%d"),
+            msg_count=report["msg_count"],
+            active_users=report["active_users"],
+            feedback_count=report["feedback_count"],
+            top_messages=top_msgs[:5],
+        )
+        if not img_bytes:
+            return {"ok": False, "error": "Image generation failed"}
+
+        # Save and send
+        ts = datetime.now().strftime("%H%M%S")
+        filename = f"report_{data.group_id}_{ts}.png"
+        filepath = f"data/report_images/{filename}"
+        with open(filepath, "wb") as f:
+            f.write(img_bytes)
+
+        caption = f"📊 {report['group_title']} 日报\n{report['date']} | 💬 {report['msg_count']}条 | 👥 {report['active_users']}人 | 📩 {report['feedback_count']}条反馈"
+        ok = await monitor._bot_module.send_photo_to_group(data.group_id, filepath, caption)
+        return {"ok": ok, "report": report}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 # ─── Telethon Mode API ──────────────────────────────────────────
 
 @app.post("/api/monitor/telethon/start")
