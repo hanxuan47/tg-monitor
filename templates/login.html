@@ -149,7 +149,7 @@ async function doLogin() {
         });
         const data = await resp.json();
         if (data.ok) {
-            document.cookie = "session=authenticated; path=/; max-age=86400";
+            if(data.token) document.cookie = "session=" + data.token + "; path=/; max-age=86400";
             window.location.href = '/';
         } else {
             err.textContent = data.error || '密码错误';
@@ -179,7 +179,7 @@ async function setupPassword() {
         });
         const data = await resp.json();
         if (data.ok) {
-            document.cookie = "session=authenticated; path=/; max-age=86400";
+            if(data.token) document.cookie = "session=" + data.token + "; path=/; max-age=86400";
             window.location.href = '/';
         } else {
             err.textContent = data.error || '设置失败';

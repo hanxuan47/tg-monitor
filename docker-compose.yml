@@ -20,6 +20,5 @@ services:
         ports:
             - "0.0.0.0:8080:8080"
         restart: always
-        user: "0:0"
         volumes:
             - ./data:/app/data

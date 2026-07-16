@@ -7,11 +7,12 @@ import asyncio
 import json
 import logging
 import os
+import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Depends
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -71,16 +72,20 @@ class LoginData(BaseModel):
 # ─── Auth middleware ────────────────────────────────────────────
 
 async def check_auth(request: Request):
-    """Check if user is logged in."""
+    """Check if user is logged in via random session token."""
     password = await get_config("panel_password", "")
     if not password:
         return True  # No password set = open access
+    valid_token = await get_config("session_token", "")
+    if not valid_token:
+        return False  # No session token generated yet
     token = request.cookies.get("session")
-    return token == "authenticated"
+    return token == valid_token
 
 async def require_auth(request: Request):
+    """Raise 401 if not authenticated."""
     if not await check_auth(request):
-        return None
+        raise HTTPException(status_code=401, detail="未登录")
     return True
 
 
@@ -202,16 +207,20 @@ async def login_page(request: Request):
 
 @app.post("/api/login")
 async def api_login(data: LoginData):
-    """Verify password and set session cookie."""
+    """Verify password, generate session token, set cookie."""
     password = await get_config("panel_password", "")
     if not password:
-        return {"ok": True}  # No password set = always OK
-    if data.password == password:
         return {"ok": True}
+    if data.password == password:
+        token = secrets.token_hex(32)
+        await set_config("session_token", token)
+        return {"ok": True, "token": token}
     return {"ok": False, "error": "密码错误"}
 
 @app.get("/api/logout")
 async def api_logout():
+    """Logout: clear session token and cookie."""
+    await set_config("session_token", "")
     resp = JSONResponse({"ok": True})
     resp.delete_cookie("session")
     return resp
@@ -281,17 +290,17 @@ async def dashboard(request: Request):
 # ─── API Routes ─────────────────────────────────────────────────
 
 @app.get("/api/stats")
-async def api_stats():
+async def api_stats(_ = Depends(require_auth)):
     stats = await get_overview_stats()
     timeline = await get_activity_timeline(hours=24)
     return {"stats": stats, "timeline": timeline}
 
 @app.get("/api/groups")
-async def api_groups():
+async def api_groups(_ = Depends(require_auth)):
     return {"groups": await get_groups()}
 
 @app.post("/api/groups/add")
-async def api_add_group(data: GroupAdd):
+async def api_add_group(data: GroupAdd, _ = Depends(require_auth)):
     try:
         await add_group(data.group_id, data.title, data.username)
         return {"ok": True}
@@ -299,12 +308,12 @@ async def api_add_group(data: GroupAdd):
         raise HTTPException(400, str(e))
 
 @app.post("/api/groups/remove")
-async def api_remove_group(data: GroupAdd):
+async def api_remove_group(data: GroupAdd, _ = Depends(require_auth)):
     await remove_group(data.group_id)
     return {"ok": True}
 
 @app.get("/api/messages")
-async def api_messages(group_id: Optional[int] = Query(None), days: int = 7):
+async def api_messages(group_id: Optional[int] = Query(None), days: int = 7, _ = Depends(require_auth)):
     if group_id:
         msgs = await get_messages_by_group(group_id, days)
     else:
@@ -312,11 +321,11 @@ async def api_messages(group_id: Optional[int] = Query(None), days: int = 7):
     return {"messages": msgs}
 
 @app.get("/api/reports")
-async def api_reports(days: int = 7):
+async def api_reports(days: int = 7, _ = Depends(require_auth)):
     return {"reports": await get_reports(days)}
 
 @app.post("/api/reports/generate")
-async def api_generate_report(data: GroupAdd):
+async def api_generate_report(data: GroupAdd, _ = Depends(require_auth)):
     try:
         report = await generate_report(data.group_id)
         return {"ok": True, "report": report}
@@ -325,7 +334,7 @@ async def api_generate_report(data: GroupAdd):
 
 
 @app.post("/api/reports/generate-image")
-async def api_generate_report_image(data: ReportImageRequest = ReportImageRequest()):
+async def api_generate_report_image(data: ReportImageRequest = ReportImageRequest(), _ = Depends(require_auth)):
     """Generate a report image for a specific group or all groups."""
     try:
         os.makedirs("data/report_images", exist_ok=True)
@@ -391,7 +400,7 @@ async def api_generate_report_image(data: ReportImageRequest = ReportImageReques
 
 
 @app.get("/api/reports/images")
-async def api_list_report_images():
+async def api_list_report_images(_ = Depends(require_auth)):
     """List all generated report images."""
     os.makedirs("data/report_images", exist_ok=True)
     images = sorted(os.listdir("data/report_images"), reverse=True)[:30]
@@ -409,7 +418,7 @@ async def api_list_report_images():
 
 
 @app.post("/api/reports/daily-cron")
-async def api_setup_daily_cron():
+async def api_setup_daily_cron(_ = Depends(require_auth)):
     """Return the cron setup command for daily 22:00 reports."""
     import sys
     cron_cmd = (
@@ -422,21 +431,21 @@ async def api_setup_daily_cron():
     return {"ok": True, "setup": cron_cmd}
 
 @app.get("/api/keywords")
-async def api_keywords():
+async def api_keywords(_ = Depends(require_auth)):
     return {"keywords": await get_feedback_keywords()}
 
 @app.post("/api/keywords/add")
-async def api_add_keyword(data: KeywordAdd):
+async def api_add_keyword(data: KeywordAdd, _ = Depends(require_auth)):
     await add_feedback_keyword(data.keyword)
     return {"ok": True}
 
 @app.post("/api/keywords/remove")
-async def api_remove_keyword(data: KeywordAdd):
+async def api_remove_keyword(data: KeywordAdd, _ = Depends(require_auth)):
     await remove_feedback_keyword(data.keyword)
     return {"ok": True}
 
 @app.post("/api/config")
-async def api_update_config(data: ConfigUpdate):
+async def api_update_config(data: ConfigUpdate, _ = Depends(require_auth)):
     await set_config(data.key, data.value)
     return {"ok": True}
 
@@ -449,19 +458,19 @@ async def api_set_password(data: ConfigUpdate):
     return {"ok": True}
 
 @app.get("/api/auto-reply")
-async def api_get_auto_reply():
+async def api_get_auto_reply(_ = Depends(require_auth)):
     """Get auto-reply config."""
     msg = await get_config("auto_reply", "✅ 已收到您的反馈，管理员会尽快处理。")
     return {"message": msg}
 
 @app.post("/api/auto-reply")
-async def api_set_auto_reply(data: ConfigUpdate):
+async def api_set_auto_reply(data: ConfigUpdate, _ = Depends(require_auth)):
     """Set auto-reply message."""
     await set_config("auto_reply", data.value)
     return {"ok": True}
 
 @app.get("/api/config")
-async def api_get_config(key: str = ""):
+async def api_get_config(key: str = "", _ = Depends(require_auth)):
     if key:
         return {"key": key, "value": await get_config(key, "")}
     keys = ["bark_key", "bot_token", "api_id", "api_hash", "phone"]
@@ -494,7 +503,7 @@ async def api_bot_stop():
     return {"ok": False, "error": "Bot not running"}
 
 @app.get("/api/monitor/bot/info")
-async def api_bot_info():
+async def api_bot_info(_ = Depends(require_auth)):
     if monitor._bot_module and monitor._bot_module.is_running():
         info = await monitor._bot_module.get_bot_info()
         return {"ok": True, "info": info}
@@ -512,7 +521,7 @@ class MediaQuery(BaseModel):
 
 
 @app.post("/api/monitor/bot/send")
-async def api_bot_send(data: BotSendMsg):
+async def api_bot_send(data: BotSendMsg, _ = Depends(require_auth)):
     """Send a message or report image to a group via the bot."""
     if not monitor._bot_module or not monitor._bot_module.is_running():
         return {"ok": False, "error": "Bot not running"}
@@ -527,7 +536,7 @@ async def api_bot_send(data: BotSendMsg):
 
 
 @app.post("/api/monitor/bot/send-report")
-async def api_bot_send_report(data: GroupAdd):
+async def api_bot_send_report(data: GroupAdd, _ = Depends(require_auth)):
     """Generate and send daily report image to a group."""
     if not monitor._bot_module or not monitor._bot_module.is_running():
         return {"ok": False, "error": "Bot not running"}
@@ -562,7 +571,7 @@ async def api_bot_send_report(data: GroupAdd):
 # ─── Media Tracker API ──────────────────────────────────────────
 
 @app.post("/api/media/check")
-async def api_media_check(data: MediaQuery):
+async def api_media_check(data: MediaQuery, _ = Depends(require_auth)):
     api_key = await get_config("tmdb_key", "")
     if not api_key:
         return {"ok": False, "error": "请先配置 TMDB API Key (themoviedb.org)"}
@@ -585,7 +594,7 @@ async def api_media_check(data: MediaQuery):
     return {"ok": True, "count": len(items), "title": title, "items": items[:5]}
 
 @app.get("/api/media/preview")
-async def api_media_preview(type: str = "trending"):
+async def api_media_preview(type: str = "trending", _ = Depends(require_auth)):
     api_key = await get_config("tmdb_key", "")
     if not api_key:
         return {"ok": False, "error": "请先配置 TMDB API Key"}
@@ -601,7 +610,7 @@ async def api_media_preview(type: str = "trending"):
 # ─── Telethon Mode API ──────────────────────────────────────────
 
 @app.post("/api/monitor/telethon/start")
-async def api_telethon_start(data: TelethonStart):
+async def api_telethon_start(data: TelethonStart, _ = Depends(require_auth)):
     if monitor.is_running():
         return {"ok": False, "error": "Monitor already running"}
     try:
@@ -615,7 +624,7 @@ async def api_telethon_start(data: TelethonStart):
         return {"ok": False, "error": str(e)}
 
 @app.post("/api/monitor/telethon/stop")
-async def api_telethon_stop():
+async def api_telethon_stop(_ = Depends(require_auth)):
     if monitor._telethon_module:
         await monitor._telethon_module.stop_client()
         monitor.mode = None
@@ -623,25 +632,25 @@ async def api_telethon_stop():
     return {"ok": False, "error": "Telethon not running"}
 
 @app.get("/api/monitor/telethon/dialogs")
-async def api_telethon_dialogs():
+async def api_telethon_dialogs(_ = Depends(require_auth)):
     dialogs = await monitor.list_dialogs()
     return {"dialogs": dialogs}
 
 # ─── Generic Monitor API ────────────────────────────────────────
 
 @app.post("/api/monitor/stop")
-async def api_monitor_stop():
+async def api_monitor_stop(_ = Depends(require_auth)):
     await monitor.stop()
     return {"ok": True}
 
 @app.get("/api/monitor/status")
-async def api_monitor_status():
+async def api_monitor_status(_ = Depends(require_auth)):
     return await monitor.get_status()
 
 # ─── Bark API ───────────────────────────────────────────────────
 
 @app.post("/api/bark/test")
-async def api_bark_test():
+async def api_bark_test(_ = Depends(require_auth)):
     await send_notification(
         title="🔔 TG Monitor 测试通知",
         body="监控面板已成功配置 Bark 通知！",
@@ -651,7 +660,7 @@ async def api_bark_test():
     return {"ok": True}
 
 @app.post("/api/bark/send")
-async def api_bark_send(data: ConfigUpdate):
+async def api_bark_send(data: ConfigUpdate, _ = Depends(require_auth)):
     await send_notification(
         title=data.key,
         body=data.value,
