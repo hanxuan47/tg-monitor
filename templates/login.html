@@ -129,6 +129,10 @@
         <label>面板密码</label>
         <input type="password" id="password" placeholder="输入密码" autofocus onkeydown="if(event.key==='Enter')doLogin()">
     </div>
+    <div class="form-group" id="totpGroup" style="display:none">
+        <label>谷歌验证码</label>
+        <input type="text" id="totpCode" placeholder="输入 Google Authenticator 验证码" inputmode="numeric" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
     <button id="loginBtn" onclick="doLogin()">登录</button>
     <div class="error-msg" id="errorMsg"></div>
     {% endif %}
@@ -137,20 +141,39 @@
 <script>
 async function doLogin() {
     const pwd = document.getElementById('password').value;
+    const totp = document.getElementById('totpCode').value;
     const btn = document.getElementById('loginBtn');
     const err = document.getElementById('errorMsg');
     if (!pwd) { err.textContent = '请输入密码'; err.style.display = 'block'; return; }
+
+    // Check if 2FA is enabled and we need a code
+    const totpGroup = document.getElementById('totpGroup');
+    const needsTotp = totpGroup.style.display !== 'none';
+
+    let sendPwd = pwd;
+    if (needsTotp) {
+        if (!totp) { err.textContent = '请输入验证码'; err.style.display = 'block'; return; }
+        sendPwd = pwd + ':' + totp;
+    }
+
     btn.disabled = true; btn.textContent = '登录中...';
     try {
         const resp = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: pwd })
+            body: JSON.stringify({ password: sendPwd })
         });
         const data = await resp.json();
         if (data.ok) {
             if(data.token) document.cookie = "session=" + data.token + "; path=/; max-age=86400";
             window.location.href = '/';
+        } else if (data.totp_required) {
+            // Show TOTP input
+            totpGroup.style.display = 'block';
+            document.getElementById('totpCode').focus();
+            err.textContent = '请输入 Google Authenticator 验证码';
+            err.style.display = 'block';
+            btn.disabled = false; btn.textContent = '登录';
         } else {
             err.textContent = data.error || '密码错误';
             err.style.display = 'block';

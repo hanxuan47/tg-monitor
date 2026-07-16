@@ -30,6 +30,7 @@ from database import (
 from bark_notify import send_notification, send_feedback_alert, send_daily_summary
 from report_image import generate_report_image, generate_multi_group_report
 from media_tracker import get_trending, get_now_playing, get_on_the_air, format_media_message, format_media_summary
+import pyotp, io, base64, qrcode
 
 logging.basicConfig(
     level=logging.INFO,
@@ -182,6 +183,91 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="TG Monitor Dashboard", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+
+# ─── TOTP 2FA ─────────────────────────────────────────────────
+
+@app.get("/api/2fa/status")
+async def api_2fa_status():
+    """Check if 2FA is enabled."""
+    secret = await get_config("totp_secret", "")
+    return {"enabled": bool(secret)}
+
+
+@app.post("/api/2fa/setup")
+async def api_2fa_setup():
+    """Generate TOTP secret and return QR code."""
+    secret = pyotp.random_base32()
+    await set_config("totp_secret_temp", secret)  # store temporarily until verified
+
+    totp = pyotp.TOTP(secret)
+    uri = totp.provisioning_uri(name="TG Monitor", issuer_name="tg-monitor")
+
+    qr = qrcode.make(uri)
+    buf = io.BytesIO()
+    qr.save(buf, format="PNG")
+    qr_b64 = base64.b64encode(buf.getvalue()).decode()
+
+    return {
+        "ok": True,
+        "secret": secret,
+        "qr": f"data:image/png;base64,{qr_b64}",
+    }
+
+
+@app.post("/api/2fa/verify")
+async def api_2fa_verify(data: ConfigUpdate):
+    """Verify a TOTP code and activate 2FA."""
+    secret = await get_config("totp_secret_temp", "")
+    if not secret:
+        return {"ok": False, "error": "请先获取密钥"}
+    totp = pyotp.TOTP(secret)
+    if totp.verify(data.value):
+        await set_config("totp_secret", secret)
+        await set_config("totp_secret_temp", "")
+        return {"ok": True}
+    return {"ok": False, "error": "验证码错误"}
+
+
+@app.post("/api/2fa/disable")
+async def api_2fa_disable(data: ConfigUpdate):
+    """Disable 2FA (requires password)."""
+    password = await get_config("panel_password", "")
+    if password and data.value != password:
+        return {"ok": False, "error": "密码错误"}
+    await set_config("totp_secret", "")
+    await set_config("totp_secret_temp", "")
+    return {"ok": True}
+
+
+@app.post("/api/login")
+async def api_login(data: LoginData):
+    """Verify password + TOTP if enabled."""
+    password = await get_config("panel_password", "")
+    if not password:
+        return {"ok": True}
+
+    if data.password != password:
+        return {"ok": False, "error": "密码错误"}
+
+    # Check TOTP if enabled
+    totp_secret = await get_config("totp_secret", "")
+    if totp_secret:
+        # Expect TOTP code in format "password:totpcode"
+        if ":" not in data.password:
+            return {"ok": False, "totp_required": True, "error": "需要验证码"}
+        pwd, code = data.password.rsplit(":", 1)
+        if pwd != password:
+            return {"ok": False, "error": "密码错误"}
+        totp = pyotp.TOTP(totp_secret)
+        if not totp.verify(code):
+            return {"ok": False, "error": "验证码错误"}
+
+    token = secrets.token_hex(32)
+    await set_config("session_token", token)
+    return {"ok": True, "token": token}
+
+
+
 # Templates + static
 os.makedirs("data/report_images", exist_ok=True)
 templates = Jinja2Templates(directory="templates")
@@ -206,17 +292,6 @@ async def login_page(request: Request):
     })
 
 @app.post("/api/login")
-async def api_login(data: LoginData):
-    """Verify password, generate session token, set cookie."""
-    password = await get_config("panel_password", "")
-    if not password:
-        return {"ok": True}
-    if data.password == password:
-        token = secrets.token_hex(32)
-        await set_config("session_token", token)
-        return {"ok": True, "token": token}
-    return {"ok": False, "error": "密码错误"}
-
 @app.get("/api/logout")
 async def api_logout():
     """Logout: clear session token and cookie."""
