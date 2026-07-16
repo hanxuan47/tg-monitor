@@ -297,9 +297,14 @@ async def _schedule_delete(context: CallbackContext, message):
     try:
         auto_delete = await get_config("auto_delete", "true")
         if auto_delete != "true":
+            logger.debug("Auto-delete disabled by config")
             return
         seconds = int(await get_config("auto_delete_seconds", "30"))
         if seconds <= 0:
+            logger.debug("Auto-delete seconds <= 0, skipping")
+            return
+        if not context.job_queue:
+            logger.warning("Job queue not available, cannot schedule auto-delete")
             return
         context.job_queue.run_once(
             _delete_job, seconds, data={
@@ -307,6 +312,7 @@ async def _schedule_delete(context: CallbackContext, message):
                 "message_id": message.message_id,
             }
         )
+        logger.info("Scheduled auto-delete for msg %d in %ds", message.message_id, seconds)
     except Exception as e:
         logger.warning("Schedule delete failed: %s", e)
 
