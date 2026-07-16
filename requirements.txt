@@ -8,3 +8,5 @@ jinja2
 aiofiles
 httpx
 Pillow
+pyotp
+qrcode[pil]
