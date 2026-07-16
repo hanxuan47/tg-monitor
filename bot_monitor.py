@@ -33,6 +33,8 @@ FeedbackCallback = Callable[[dict], None]
 _bot_app: Optional[Application] = None
 _on_feedback: Optional[FeedbackCallback] = None
 _monitoring = False
+_bot_username: str = ""
+_bot_id: int = 0
 
 
 async def start_bot(
@@ -40,13 +42,17 @@ async def start_bot(
     feedback_callback: Optional[FeedbackCallback] = None,
 ):
     """Start the Telegram bot and begin monitoring groups."""
-    global _bot_app, _on_feedback, _monitoring
+    global _bot_app, _on_feedback, _monitoring, _bot_username, _bot_id
 
     _on_feedback = feedback_callback
 
     _bot_app = Application.builder().token(token).build()
 
-    # Register handlers
+    # Cache bot info
+    me = await _bot_app.bot.get_me()
+    _bot_username = me.username or ""
+    _bot_id = me.id
+    logger.info("Bot started: @%s (ID: %s)", _bot_username, _bot_id)
     _bot_app.add_handler(CommandHandler("start", _cmd_start))
     _bot_app.add_handler(CommandHandler("status", _cmd_status))
     _bot_app.add_handler(CommandHandler("help", _cmd_help))
@@ -134,7 +140,7 @@ async def _cmd_help(update: Update, context: CallbackContext):
 
 async def _handle_message(update: Update, context: CallbackContext):
     """Process incoming messages from monitored groups."""
-    global _on_feedback
+    global _on_feedback, _bot_username, _bot_id
 
     if not update.message or not update.message.text:
         return
@@ -160,6 +166,10 @@ async def _handle_message(update: Update, context: CallbackContext):
 
     msg_date = message.date or datetime.now()
 
+    # Cache vars for use in inner scope
+    bot_username = _bot_username
+    bot_id = _bot_id
+
     # Check for AI chat mode
     ai_mode = await get_config("ai_chat_enabled", "false")
     ai_key = await get_config("deepseek_key", "")
@@ -167,15 +177,28 @@ async def _handle_message(update: Update, context: CallbackContext):
     # Determine if bot should reply with AI
     should_ai_reply = False
     if ai_mode == "true" and ai_key:
-        # Reply to: @bot mentions, replies to bot, or all messages in AI groups
-        bot_user = await _bot_app.bot.get_me() if _bot_app else None
-        bot_username = bot_user.username if bot_user else ""
+        # Check if bot is mentioned (@bot) or reply to bot
+        is_mention = False
+        if bot_username:
+            # Check text for @username
+            if f"@{bot_username.lower()}" in text.lower():
+                is_mention = True
+            # Check message entities for mention
+            if message.entities:
+                from telegram.constants import MessageEntityType
+                for e in message.entities:
+                    if e.type == MessageEntityType.MENTION:
+                        mentioned = text[e.offset:e.offset+e.length].lower()
+                        if mentioned == f"@{bot_username.lower()}":
+                            is_mention = True
+                            break
 
-        # Check if bot is mentioned (@bot or reply to bot)
-        is_mention = bot_username and f"@{bot_username}" in text
-        is_reply_to_bot = (message.reply_to_message
-                          and message.reply_to_message.from_user
-                          and message.reply_to_message.from_user.is_bot)
+        # Check if reply to this bot
+        is_reply_to_bot = False
+        if message.reply_to_message and message.reply_to_message.from_user:
+            ru = message.reply_to_message.from_user
+            if ru.is_bot and bot_id and ru.id == bot_id:
+                is_reply_to_bot = True
 
         if is_mention or is_reply_to_bot:
             should_ai_reply = True
@@ -235,6 +258,7 @@ async def _handle_message(update: Update, context: CallbackContext):
             clean_text = text
             if bot_username:
                 clean_text = clean_text.replace(f"@{bot_username}", "").strip()
+                clean_text = clean_text.replace(f"@{bot_username.lower()}", "").strip()
 
             # Show typing indicator
             await _bot_app.bot.send_chat_action(chat_id=group_id, action="typing")
