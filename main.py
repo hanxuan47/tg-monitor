@@ -20,6 +20,8 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
+import httpx
+
 from database import (
     init_db, close_db, get_config, set_config, get_config_batch,
     add_group, remove_group, get_groups,
