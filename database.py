@@ -1,6 +1,6 @@
 """
-TG Monitor - Database Layer
-SQLite async database for storing groups, messages, config, and reports.
+TG Monitor - Database Layer (Optimized)
+SQLite async database with indexes and optimized queries.
 """
 import aiosqlite
 import json
@@ -10,14 +10,32 @@ from typing import Optional
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "monitor.db")
 
+# ─── Connection pool ──────────────────────────────────────────
+
+_db: Optional[aiosqlite.Connection] = None
+
 
 async def get_db():
-    db = await aiosqlite.connect(DB_PATH)
-    db.row_factory = aiosqlite.Row
-    await db.execute("PRAGMA journal_mode=WAL")
-    await db.execute("PRAGMA foreign_keys=ON")
-    return db
+    global _db
+    if _db is None:
+        _db = await aiosqlite.connect(DB_PATH)
+        _db.row_factory = aiosqlite.Row
+        await _db.execute("PRAGMA journal_mode=WAL")
+        await _db.execute("PRAGMA synchronous=NORMAL")
+        await _db.execute("PRAGMA cache_size=-8000")  # 8MB cache
+        await _db.execute("PRAGMA busy_timeout=5000")
+        await _db.execute("PRAGMA foreign_keys=ON")
+    return _db
 
+
+async def close_db():
+    global _db
+    if _db:
+        await _db.close()
+        _db = None
+
+
+# ─── Init with indexes ────────────────────────────────────────
 
 async def init_db():
     db = await get_db()
@@ -44,6 +62,15 @@ async def init_db():
             FOREIGN KEY (group_id) REFERENCES groups(group_id)
         );
 
+        CREATE INDEX IF NOT EXISTS idx_messages_group_date
+            ON messages(group_id, msg_date);
+
+        CREATE INDEX IF NOT EXISTS idx_messages_date
+            ON messages(msg_date);
+
+        CREATE INDEX IF NOT EXISTS idx_messages_feedback
+            ON messages(is_feedback, msg_date);
+
         CREATE TABLE IF NOT EXISTS daily_reports (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             group_id    INTEGER NOT NULL,
@@ -56,6 +83,9 @@ async def init_db():
             UNIQUE(group_id, report_date)
         );
 
+        CREATE INDEX IF NOT EXISTS idx_reports_date
+            ON daily_reports(report_date);
+
         CREATE TABLE IF NOT EXISTS config (
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -67,30 +97,60 @@ async def init_db():
         );
     """)
     await db.commit()
-    await db.close()
 
 
-# ─── Config helpers ──────────────────────────────────────────────
+# ─── Config helpers (with in-memory cache) ────────────────────
+
+_config_cache: dict = {}
+_config_cache_ttl: datetime = datetime.min
+
 
 async def get_config(key: str, default: str = "") -> str:
+    global _config_cache, _config_cache_ttl
+
+    # Return from cache if fresh (< 5 seconds)
+    if key in _config_cache and (datetime.now() - _config_cache_ttl).seconds < 5:
+        return _config_cache[key]
+
     db = await get_db()
     cursor = await db.execute("SELECT value FROM config WHERE key=?", (key,))
     row = await cursor.fetchone()
-    await db.close()
-    return row["value"] if row else default
+    value = row["value"] if row else default
+
+    _config_cache[key] = value
+    _config_cache_ttl = datetime.now()
+    return value
 
 
 async def set_config(key: str, value: str):
+    global _config_cache
     db = await get_db()
     await db.execute(
         "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=?",
         (key, value, value),
     )
     await db.commit()
-    await db.close()
+    _config_cache[key] = value  # update cache immediately
 
 
-# ─── Group helpers ───────────────────────────────────────────────
+# ─── Config batch read ────────────────────────────────────────
+
+async def get_config_batch(keys: list[str]) -> dict:
+    """Read multiple config values in one query."""
+    db = await get_db()
+    placeholders = ",".join("?" for _ in keys)
+    cursor = await db.execute(
+        f"SELECT key, value FROM config WHERE key IN ({placeholders})", keys
+    )
+    rows = await cursor.fetchall()
+    result = {r["key"]: r["value"] for r in rows}
+    for k in keys:
+        if k not in result:
+            result[k] = ""
+    return result
+
+
+# ─── Group helpers ─────────────────────────────────────────────
 
 async def add_group(group_id: int, title: str, username: str = "", member_count: int = 0):
     db = await get_db()
@@ -105,14 +165,12 @@ async def add_group(group_id: int, title: str, username: str = "", member_count:
         (group_id, title, username, member_count),
     )
     await db.commit()
-    await db.close()
 
 
 async def remove_group(group_id: int):
     db = await get_db()
     await db.execute("UPDATE groups SET is_active=0 WHERE group_id=?", (group_id,))
     await db.commit()
-    await db.close()
 
 
 async def get_groups(active_only: bool = True) -> list:
@@ -122,11 +180,10 @@ async def get_groups(active_only: bool = True) -> list:
     else:
         cursor = await db.execute("SELECT * FROM groups ORDER BY title")
     rows = await cursor.fetchall()
-    await db.close()
     return [dict(r) for r in rows]
 
 
-# ─── Message helpers ─────────────────────────────────────────────
+# ─── Message helpers ───────────────────────────────────────────
 
 async def save_message(group_id: int, sender_id: int, sender_name: str,
                         text: str, msg_date: datetime, is_feedback: bool = False):
@@ -137,7 +194,6 @@ async def save_message(group_id: int, sender_id: int, sender_name: str,
         (group_id, sender_id, sender_name, text, msg_date.isoformat(), 1 if is_feedback else 0),
     )
     await db.commit()
-    await db.close()
 
 
 async def get_recent_messages(limit: int = 50) -> list:
@@ -150,7 +206,6 @@ async def get_recent_messages(limit: int = 50) -> list:
         (limit,),
     )
     rows = await cursor.fetchall()
-    await db.close()
     return [dict(r) for r in rows]
 
 
@@ -164,17 +219,15 @@ async def get_messages_by_group(group_id: int, days: int = 7) -> list:
         (group_id, since),
     )
     rows = await cursor.fetchall()
-    await db.close()
     return [dict(r) for r in rows]
 
 
-# ─── Feedback keywords ──────────────────────────────────────────
+# ─── Feedback keywords ─────────────────────────────────────────
 
 async def get_feedback_keywords() -> list[str]:
     db = await get_db()
     cursor = await db.execute("SELECT keyword FROM feedback_keywords")
     rows = await cursor.fetchall()
-    await db.close()
     return [r["keyword"] for r in rows]
 
 
@@ -185,54 +238,48 @@ async def add_feedback_keyword(keyword: str):
         await db.commit()
     except aiosqlite.IntegrityError:
         pass
-    await db.close()
 
 
 async def remove_feedback_keyword(keyword: str):
     db = await get_db()
     await db.execute("DELETE FROM feedback_keywords WHERE keyword=?", (keyword,))
     await db.commit()
-    await db.close()
 
 
-# ─── Daily reports ──────────────────────────────────────────────
+# ─── Daily reports (optimized single-query) ───────────────────
 
-async def generate_report(group_id: int):
-    """Generate a daily summary report for a group."""
+async def generate_report(group_id: int) -> dict:
+    """Generate a daily summary report using optimized queries."""
     today = datetime.now().strftime("%Y-%m-%d")
     since = f"{today}T00:00:00"
 
     db = await get_db()
 
-    # Count messages today
+    # Single query for all stats
     cursor = await db.execute(
-        "SELECT COUNT(*) as cnt FROM messages WHERE group_id=? AND msg_date >= ?",
+        """SELECT
+               COUNT(*) as msg_count,
+               COUNT(DISTINCT sender_id) as active_users,
+               SUM(is_feedback) as feedback_count
+           FROM messages
+           WHERE group_id=? AND msg_date >= ?""",
         (group_id, since),
     )
-    msg_count = (await cursor.fetchone())["cnt"]
-
-    # Count active users
-    cursor = await db.execute(
-        "SELECT COUNT(DISTINCT sender_id) as cnt FROM messages WHERE group_id=? AND msg_date >= ?",
-        (group_id, since),
-    )
-    active_users = (await cursor.fetchone())["cnt"]
-
-    # Count feedback
-    cursor = await db.execute(
-        "SELECT COUNT(*) as cnt FROM messages WHERE group_id=? AND msg_date >= ? AND is_feedback=1",
-        (group_id, since),
-    )
-    feedback_count = (await cursor.fetchone())["cnt"]
+    stats = await cursor.fetchone()
+    msg_count = stats["msg_count"]
+    active_users = stats["active_users"]
+    feedback_count = stats["feedback_count"] or 0
 
     # Get group title
     cursor = await db.execute("SELECT title FROM groups WHERE group_id=?", (group_id,))
     group_row = await cursor.fetchone()
     group_title = group_row["title"] if group_row else f"Group {group_id}"
 
-    # Get latest messages for summary
+    # Get latest messages for summary (limit 3)
     cursor = await db.execute(
-        "SELECT text, sender_name FROM messages WHERE group_id=? AND msg_date >= ? ORDER BY msg_date DESC LIMIT 5",
+        """SELECT text, sender_name FROM messages
+           WHERE group_id=? AND msg_date >= ?
+           ORDER BY msg_date DESC LIMIT 3""",
         (group_id, since),
     )
     latest = await cursor.fetchall()
@@ -257,7 +304,6 @@ async def generate_report(group_id: int):
         (group_id, today, msg_count, active_users, feedback_count, summary),
     )
     await db.commit()
-    await db.close()
 
     return {
         "group_id": group_id,
@@ -282,11 +328,10 @@ async def get_reports(days: int = 7) -> list:
         (since,),
     )
     rows = await cursor.fetchall()
-    await db.close()
     return [dict(r) for r in rows]
 
 
-# ─── Stats helpers ──────────────────────────────────────────────
+# ─── Stats (optimized single-query) ──────────────────────────
 
 async def get_overview_stats() -> dict:
     db = await get_db()
@@ -294,24 +339,24 @@ async def get_overview_stats() -> dict:
     cursor = await db.execute("SELECT COUNT(*) as cnt FROM groups WHERE is_active=1")
     total_groups = (await cursor.fetchone())["cnt"]
 
-    cursor = await db.execute("SELECT COUNT(*) as cnt FROM messages WHERE msg_date >= datetime('now', '-24 hours')")
-    today_msgs = (await cursor.fetchone())["cnt"]
-
-    cursor = await db.execute("SELECT COUNT(DISTINCT group_id) as cnt FROM messages WHERE msg_date >= datetime('now', '-24 hours')")
-    active_groups = (await cursor.fetchone())["cnt"]
-
-    cursor = await db.execute("SELECT COUNT(*) as cnt FROM messages WHERE is_feedback=1 AND msg_date >= datetime('now', '-24 hours')")
-    today_feedback = (await cursor.fetchone())["cnt"]
+    cursor = await db.execute(
+        """SELECT
+               COUNT(*) as today_msgs,
+               COUNT(DISTINCT group_id) as active_groups,
+               COALESCE(SUM(is_feedback), 0) as today_feedback
+           FROM messages
+           WHERE msg_date >= datetime('now', '-24 hours')"""
+    )
+    today = await cursor.fetchone()
 
     cursor = await db.execute("SELECT COUNT(*) as cnt FROM messages")
     total_msgs = (await cursor.fetchone())["cnt"]
 
-    await db.close()
     return {
         "total_groups": total_groups,
-        "active_groups": active_groups,
-        "today_msgs": today_msgs,
-        "today_feedback": today_feedback,
+        "active_groups": today["active_groups"],
+        "today_msgs": today["today_msgs"],
+        "today_feedback": today["today_feedback"],
         "total_msgs": total_msgs,
     }
 
@@ -329,5 +374,4 @@ async def get_activity_timeline(hours: int = 24) -> list:
         (since,),
     )
     rows = await cursor.fetchall()
-    await db.close()
     return [{"hour": r["hour"], "count": r["cnt"]} for r in rows]

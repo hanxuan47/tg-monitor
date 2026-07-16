@@ -15,10 +15,11 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
 from database import (
-    init_db, get_config, set_config,
+    init_db, close_db, get_config, set_config, get_config_batch,
     add_group, remove_group, get_groups,
     get_recent_messages, get_messages_by_group,
     get_feedback_keywords, add_feedback_keyword, remove_feedback_keyword,
@@ -170,8 +171,10 @@ async def lifespan(app: FastAPI):
     logger.info("Database initialized")
     yield
     await monitor.stop()
+    await close_db()
 
 app = FastAPI(title="TG Monitor Dashboard", lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Templates + static
 os.makedirs("data/report_images", exist_ok=True)
@@ -228,12 +231,15 @@ async def dashboard(request: Request):
     keywords = await get_feedback_keywords()
     running = monitor.is_running()
     mode = monitor.mode
-    bark_key = await get_config("bark_key", "")
-    bot_token = await get_config("bot_token", "")
-    api_id = await get_config("api_id", "")
-    api_hash = await get_config("api_hash", "")
-    phone = await get_config("phone", "")
 
+    # Batch read all configs in one query
+    configs = await get_config_batch(["bark_key", "bot_token", "api_id", "api_hash", "phone", "panel_password"])
+    bark_key = configs.get("bark_key", "")
+    bot_token = configs.get("bot_token", "")
+    api_id = configs.get("api_id", "")
+    api_hash = configs.get("api_hash", "")
+    phone = configs.get("phone", "")
+    password = configs.get("panel_password", "")
     # Aggregate reports for chart
     report_dates = sorted(set(r["report_date"] for r in reports))
     msg_counts = []
