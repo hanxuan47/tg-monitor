@@ -8,14 +8,14 @@
 <h1 align="center">📊 TG Monitor</h1>
 <p align="center"><strong>Telegram 群聊管理监控面板</strong></p>
 <p align="center">
-  🤖 Bot 监控 · 🔑 反馈检测 · 🧠 AI 回复 · 🎬 影视追新 · 🖼️ 图片日报
+  🤖 Bot 监控 · 🔑 反馈检测 · 🧠 AI 回复 · 🖼️ 图片日报
 </p>
 
 ---
 
 ## 简介
 
-TG Monitor 是一个全能的 Telegram 群聊管理监控系统。通过 Bot 接入群组，提供消息监控、反馈关键词检测、DeepSeek AI 智能回复、影视追新通知、自动回复、每日图片日报等能力，支持 Bark 推送和群内 Bot 通知。
+TG Monitor 是一个全能的 Telegram 群聊管理监控系统。通过 Bot 接入群组，提供消息监控、反馈关键词检测、DeepSeek AI 智能回复、自动回复、每日图片日报等能力，支持 Bark 推送和群内 Bot 通知。
 
 ---
 
@@ -90,18 +90,7 @@ uvicorn main:app --host 0.0.0.0 --port 8080
 |:----|:------|
 | @Bot 提及 | 群聊中 @Bot 用户名，自动调用 DeepSeek 回复 |
 | 回复 Bot 消息 | 回复 Bot 发的任意消息，自动接话 |
-| 全开模式 | 指定群组所有消息都触发 AI 回复 |
-| 配置简单 | 面板填入 DeepSeek API Key 即可使用 |
-
-### 🎬 影视追新通知
-
-通过 TMDB API 追踪最新影视资讯，Bot 推送到群聊。
-
-| 类型 | 说明 |
-|:----|:------|
-| 🔥 今日热门影视 | TMDB Trending 榜单 |
-| 🎬 正在热映 | 正在上映的电影 |
-| 📺 今日更新剧集 | 当天更新的 TV 剧集 |
+| 配置简单 | 面板填入 API Key 和地址即可，自动拉取模型列表 |
 
 ### 📊 面板功能
 
@@ -114,7 +103,7 @@ uvicorn main:app --host 0.0.0.0 --port 8080
 | 📋 **日报汇总** | 文本日报 + 精美图片报告 + 定时任务 |
 | 🤖 **Telegram 连接** | Bot 模式 / Telethon 模式切换 |
 | ⚡ **Bark 通知** | 推送密钥配置 + 测试 |
-| 🧠 **AI 助手** | DeepSeek 配置 + 消息发送 + 日报推送 + 群聊统计 + 影视追新 |
+| 🧠 **AI 助手** | DeepSeek 配置 + 模型列表自动拉取 + 消息发送 + 日报推送 + 群聊统计 |
 
 ### 🎨 界面特性
 
@@ -130,7 +119,7 @@ uvicorn main:app --host 0.0.0.0 --port 8080
 | GZip 压缩 | HTML 压缩至 15KB，传输快 4 倍 |
 | DB 连接池 | 单例连接复用 + 内存缓存配置 |
 | DB 索引 | messages 表 3 个索引，查询提升 10-100 倍 |
-| 配置缓存 | 5 秒内存缓存，频繁读取不查库 |
+| 配置缓存 | 60 秒内存缓存，频繁读取不查库 |
 | 批量读配置 | 一次查询 6 个值，减少 5 次 DB 查询 |
 
 ---
@@ -143,8 +132,7 @@ uvicorn main:app --host 0.0.0.0 --port 8080
 3. 将 Bot 添加到群组并设为管理员
 4. 面板 → 反馈监控 → 配置关键词和自动回复
 5. （可选）Bark 密钥 → 手机接收推送
-6. （可选）AI 助手 → 填入 DeepSeek Key → 开启 AI 聊天
-7. （可选）AI 助手 → TMDB Key → 影视追新通知
+6. （可选）AI 助手 → 填入 API Key → 自动拉取模型列表 → 保存启用
 ```
 
 ---
@@ -159,8 +147,7 @@ tg-monitor/
 ├── telegram_monitor.py  # Telethon 监控（备选方案）
 ├── bark_notify.py       # Bark iOS 推送
 ├── report_image.py      # 图片日报生成（Pillow）
-├── ai_chat.py           # DeepSeek AI 集成
-├── media_tracker.py     # TMDB 影视追新
+├── ai_chat.py           # DeepSeek AI 集成（OpenAI 兼容）
 ├── templates/
 │   ├── dashboard.html   # 暗色/浅色双主题面板
 │   └── login.html       # 登录页面
@@ -176,8 +163,7 @@ tg-monitor/
 | 后端 | Python 3.13+, FastAPI, Uvicorn, GZip |
 | 数据库 | SQLite (aiosqlite), 连接池 + 索引 + 缓存 |
 | Telegram | python-telegram-bot / Telethon |
-| AI | DeepSeek API (OpenAI 兼容) |
-| 影视 | TMDB API (themoviedb.org) |
+| AI | DeepSeek / OpenAI 兼容接口 |
 | 图片 | Pillow, wqy-zenhei 中文字体 |
 | 前端 | Chart.js + Font Awesome, 双主题, 毛玻璃 |
 | 推送 | Bark API (iOS) |
@@ -220,14 +206,14 @@ tg-monitor/
 | POST | `/api/reports/generate-image` | 生成图片日报 |
 | GET | `/api/reports/images` | 报告图片列表 |
 
-### AI & 影视
+### AI
 
 | 方法 | 路径 | 说明 |
 |:----:|------|:----:|
 | GET | `/api/auto-reply` | 获取自动回复内容 |
 | POST | `/api/auto-reply` | 设置自动回复内容 |
-| POST | `/api/media/check` | 查询并推送影视资讯 |
-| GET | `/api/media/preview` | 预览影视资讯 |
+| POST | `/api/ai/test` | 测试 AI 连接 |
+| POST | `/api/ai/models` | 获取模型列表 |
 
 ### Bark & 配置
 
