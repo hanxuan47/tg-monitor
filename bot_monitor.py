@@ -24,6 +24,7 @@ from telegram.ext import (
 
 from database import (
     add_group, get_groups, save_message, get_feedback_keywords, get_config,
+    get_config_batch,
 )
 
 logger = logging.getLogger("tg-monitor.bot")
@@ -170,9 +171,10 @@ async def _handle_message(update: Update, context: CallbackContext):
     bot_username = _bot_username
     bot_id = _bot_id
 
-    # Check for AI chat mode
-    ai_mode = await get_config("ai_chat_enabled", "false")
-    ai_key = await get_config("deepseek_key", "")
+    # Batch read AI config
+    ai_configs = await get_config_batch(["ai_chat_enabled", "deepseek_key", "ai_api_url", "ai_model"])
+    ai_mode = ai_configs.get("ai_chat_enabled", "false")
+    ai_key = ai_configs.get("deepseek_key", "")
 
     # Determine if bot should reply with AI
     should_ai_reply = False
@@ -264,8 +266,8 @@ async def _handle_message(update: Update, context: CallbackContext):
             await _bot_app.bot.send_chat_action(chat_id=group_id, action="typing")
 
             from ai_chat import ask_ai
-            api_url = await get_config("ai_api_url", "https://api.deepseek.com/v1")
-            ai_model = await get_config("ai_model", "deepseek-chat")
+            api_url = ai_configs.get("ai_api_url", "https://api.deepseek.com/v1")
+            ai_model = ai_configs.get("ai_model", "deepseek-chat")
             reply = await ask_ai(api_key=ai_key, api_url=api_url, model=ai_model, message=clean_text)
 
             if reply:

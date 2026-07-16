@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import secrets
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Optional
@@ -29,7 +30,6 @@ from database import (
 )
 from bark_notify import send_notification, send_feedback_alert, send_daily_summary
 from report_image import generate_report_image, generate_multi_group_report
-from media_tracker import get_trending, get_now_playing, get_on_the_air, format_media_message, format_media_summary
 import pyotp, io, base64, qrcode
 
 logging.basicConfig(
@@ -55,10 +55,6 @@ class ReportImageRequest(BaseModel):
 class KeywordAdd(BaseModel):
     keyword: str
 
-class AutoReplyConfig(BaseModel):
-    enabled: bool = True
-    message: str = "✅ 已收到您的反馈，管理员会尽快处理。"
-
 class BotStart(BaseModel):
     token: str
 
@@ -72,6 +68,10 @@ class LoginData(BaseModel):
 
 # ─── Auth middleware ────────────────────────────────────────────
 
+_SESSION_TTL_HOURS = 72
+_login_attempts: dict = {}  # rate limiting: {ip: [timestamps]}
+
+
 async def check_auth(request: Request):
     """Check if user is logged in via random session token."""
     password = await get_config("panel_password", "")
@@ -80,13 +80,41 @@ async def check_auth(request: Request):
     valid_token = await get_config("session_token", "")
     if not valid_token:
         return False  # No session token generated yet
+
+    # Check session expiry
+    created_str = await get_config("session_created_at", "0")
+    try:
+        created = float(created_str)
+        if time.time() - created > _SESSION_TTL_HOURS * 3600:
+            # Session expired
+            await set_config("session_token", "")
+            await set_config("session_created_at", "0")
+            return False
+    except ValueError:
+        pass
+
     token = request.cookies.get("session")
     return token == valid_token
+
 
 async def require_auth(request: Request):
     """Raise 401 if not authenticated."""
     if not await check_auth(request):
         raise HTTPException(status_code=401, detail="未登录")
+    return True
+
+
+async def _check_login_rate_limit(request: Request):
+    """Rate limit: 5 attempts per minute per IP."""
+    ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    if ip not in _login_attempts:
+        _login_attempts[ip] = []
+    # Clean old entries
+    _login_attempts[ip] = [t for t in _login_attempts[ip] if now - t < 60]
+    if len(_login_attempts[ip]) >= 5:
+        return False
+    _login_attempts[ip].append(now)
     return True
 
 
@@ -239,8 +267,12 @@ async def api_2fa_disable(data: ConfigUpdate):
 
 
 @app.post("/api/login")
-async def api_login(data: LoginData):
+async def api_login(data: LoginData, request: Request = None):
     """Verify password + TOTP if enabled."""
+    # Rate limiting
+    if not await _check_login_rate_limit(request or Request):
+        return {"ok": False, "error": "登录尝试过于频繁，请稍后再试"}
+
     password = await get_config("panel_password", "")
     if not password:
         return {"ok": True}
@@ -263,14 +295,19 @@ async def api_login(data: LoginData):
 
     token = secrets.token_hex(32)
     await set_config("session_token", token)
+    await set_config("session_created_at", str(time.time()))
     return {"ok": True, "token": token}
 
 
 
+# ─── Base directory ──────────────────────────────────────────
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+REPORT_IMAGES_DIR = os.path.join(BASE_DIR, "data", "report_images")
+
 # Templates + static
-os.makedirs("data/report_images", exist_ok=True)
-templates = Jinja2Templates(directory="templates")
-app.mount("/report_images", StaticFiles(directory="data/report_images"), name="report_images")
+os.makedirs(REPORT_IMAGES_DIR, exist_ok=True)
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+app.mount("/report_images", StaticFiles(directory=REPORT_IMAGES_DIR), name="report_images")
 
 # ─── Exception handler for redirect ──────────────────────────
 
@@ -290,7 +327,6 @@ async def login_page(request: Request):
         "has_password": bool(password),
     })
 
-@app.post("/api/login")
 @app.get("/api/logout")
 async def api_logout():
     """Logout: clear session token and cookie."""
@@ -301,11 +337,10 @@ async def api_logout():
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    # Auth check — always redirect to login page, which handles setup or auth
-    password = await get_config("panel_password", "")
-    session = request.cookies.get("session")
-    if password and session != "authenticated":
+    # Auth check — use same logic as require_auth but redirect instead of 401
+    if not await check_auth(request):
         return RedirectResponse(url="/login")
+    password = await get_config("panel_password", "")
     if not password:
         # No password set — redirect to setup page
         return RedirectResponse(url="/login")
@@ -418,17 +453,15 @@ async def api_generate_report_image(data: ReportImageRequest = ReportImageReques
             # Single group
             report = await generate_report(data.group_id)
             top_msgs = await get_messages_by_group(data.group_id, days=1)
-            img_bytes = generate_report_image(
-                group_title=report["group_title"],
-                report_date=today,
-                msg_count=report["msg_count"],
-                active_users=report["active_users"],
-                feedback_count=report["feedback_count"],
-                top_messages=top_msgs[:5],
+            img_bytes = await asyncio.get_event_loop().run_in_executor(
+                None, generate_report_image,
+                report["group_title"], today,
+                report["msg_count"], report["active_users"],
+                report["feedback_count"], top_msgs[:5],
             )
             if img_bytes:
                 filename = f"report_{data.group_id}_{today}_{ts}.png"
-                filepath = f"data/report_images/{filename}"
+                filepath = os.path.join(REPORT_IMAGES_DIR, filename)
                 with open(filepath, "wb") as f:
                     f.write(img_bytes)
                 return {"ok": True, "filename": filename, "url": f"/report_images/{filename}"}
@@ -439,30 +472,31 @@ async def api_generate_report_image(data: ReportImageRequest = ReportImageReques
             groups = await get_groups()
             reports_data = []
             filenames = []
+            loop = asyncio.get_event_loop()
             for g in groups:
                 report = await generate_report(g["group_id"])
                 top_msgs = await get_messages_by_group(g["group_id"], days=1)
-                img_bytes = generate_report_image(
-                    group_title=report["group_title"],
-                    report_date=today,
-                    msg_count=report["msg_count"],
-                    active_users=report["active_users"],
-                    feedback_count=report["feedback_count"],
-                    top_messages=top_msgs[:5],
+                img_bytes = await loop.run_in_executor(
+                    None, generate_report_image,
+                    report["group_title"], today,
+                    report["msg_count"], report["active_users"],
+                    report["feedback_count"], top_msgs[:5],
                 )
                 if img_bytes:
                     filename = f"report_{g['group_id']}_{today}_{ts}.png"
-                    filepath = f"data/report_images/{filename}"
+                    filepath = os.path.join(REPORT_IMAGES_DIR, filename)
                     with open(filepath, "wb") as f:
                         f.write(img_bytes)
                     filenames.append(filename)
                 reports_data.append(report)
 
             # Also generate multi-group summary
-            summary_img = generate_multi_group_report(reports_data, today)
+            summary_img = await loop.run_in_executor(
+                None, generate_multi_group_report, reports_data, today,
+            )
             if summary_img:
                 sf = f"summary_{today}.png"
-                with open(f"data/report_images/{sf}", "wb") as f:
+                with open(os.path.join(REPORT_IMAGES_DIR, sf), "wb") as f:
                     f.write(summary_img)
                 filenames.append(sf)
 
@@ -475,17 +509,24 @@ async def api_generate_report_image(data: ReportImageRequest = ReportImageReques
 @app.get("/api/reports/images")
 async def api_list_report_images(_ = Depends(require_auth)):
     """List all generated report images."""
-    images = sorted(os.listdir("data/report_images"), reverse=True)[:30]
+    try:
+        images = sorted(os.listdir(REPORT_IMAGES_DIR), reverse=True)[:30]
+    except FileNotFoundError:
+        return {"images": []}
     result = []
     for img in images:
-        path = f"data/report_images/{img}"
-        size = os.path.getsize(path) if os.path.exists(path) else 0
-        result.append({
-            "filename": img,
-            "url": f"/report_images/{img}",
-            "size_kb": round(size / 1024, 1),
-            "created": datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M") if os.path.exists(path) else "",
-        })
+        path = os.path.join(REPORT_IMAGES_DIR, img)
+        try:
+            size = os.path.getsize(path)
+            mtime = os.path.getmtime(path)
+            result.append({
+                "filename": img,
+                "url": f"/report_images/{img}",
+                "size_kb": round(size / 1024, 1),
+                "created": datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M"),
+            })
+        except OSError:
+            continue
     return {"images": result}
 
 
@@ -528,6 +569,15 @@ async def api_set_password(data: ConfigUpdate):
         return {"ok": False, "error": "密码至少4位"}
     await set_config("panel_password", data.value)
     return {"ok": True}
+
+@app.get("/api/configs")
+async def api_get_configs(keys: str = "", _ = Depends(require_auth)):
+    """Batch read config values. Pass keys as comma-separated string."""
+    if not keys:
+        return {"values": {}}
+    key_list = [k.strip() for k in keys.split(",") if k.strip()]
+    values = await get_config_batch(key_list)
+    return {"values": values}
 
 @app.get("/api/auto-reply")
 async def api_get_auto_reply(_ = Depends(require_auth)):
@@ -587,10 +637,6 @@ class BotSendMsg(BaseModel):
     text: str = ""
     image: str = ""
 
-class MediaQuery(BaseModel):
-    type: str = "trending"  # trending, nowplaying, ontv
-    group_id: Optional[int] = None
-
 
 @app.post("/api/monitor/bot/send")
 async def api_bot_send(data: BotSendMsg, _ = Depends(require_auth)):
@@ -616,13 +662,11 @@ async def api_bot_send_report(data: GroupAdd, _ = Depends(require_auth)):
         # Generate report
         report = await generate_report(data.group_id)
         top_msgs = await get_messages_by_group(data.group_id, days=1)
-        img_bytes = generate_report_image(
-            group_title=report["group_title"],
-            report_date=datetime.now().strftime("%Y-%m-%d"),
-            msg_count=report["msg_count"],
-            active_users=report["active_users"],
-            feedback_count=report["feedback_count"],
-            top_messages=top_msgs[:5],
+        img_bytes = await asyncio.get_event_loop().run_in_executor(
+            None, generate_report_image,
+            report["group_title"], datetime.now().strftime("%Y-%m-%d"),
+            report["msg_count"], report["active_users"],
+            report["feedback_count"], top_msgs[:5],
         )
         if not img_bytes:
             return {"ok": False, "error": "Image generation failed"}
@@ -630,7 +674,7 @@ async def api_bot_send_report(data: GroupAdd, _ = Depends(require_auth)):
         # Save and send
         ts = datetime.now().strftime("%H%M%S")
         filename = f"report_{data.group_id}_{ts}.png"
-        filepath = f"data/report_images/{filename}"
+        filepath = os.path.join(REPORT_IMAGES_DIR, filename)
         with open(filepath, "wb") as f:
             f.write(img_bytes)
 
@@ -639,48 +683,6 @@ async def api_bot_send_report(data: GroupAdd, _ = Depends(require_auth)):
         return {"ok": ok, "report": report}
     except Exception as e:
         return {"ok": False, "error": str(e)}
-
-# ─── Media Tracker API ──────────────────────────────────────────
-
-@app.post("/api/media/check")
-async def api_media_check(data: MediaQuery, _ = Depends(require_auth)):
-    api_key = await get_config("tmdb_key", "")
-    if not api_key:
-        return {"ok": False, "error": "请先配置 TMDB API Key (themoviedb.org)"}
-    items = []
-    title = ""
-    if data.type == "trending":
-        items = await get_trending(api_key, "all", "day")
-        title = "🎬 今日热门影视"
-    elif data.type == "nowplaying":
-        items = await get_now_playing(api_key)
-        title = "🎬 正在热映"
-    elif data.type == "ontv":
-        items = await get_on_the_air(api_key)
-        title = "📺 今日更新剧集"
-    if data.group_id and monitor._bot_module and monitor._bot_module.is_running():
-        msg = format_media_message(items, title)
-        if len(msg) > 4000:
-            msg = format_media_summary(items, title)
-        await monitor._bot_module.send_to_group(data.group_id, msg)
-    return {"ok": True, "count": len(items), "title": title, "items": items[:5]}
-
-@app.get("/api/media/preview")
-async def api_media_preview(type: str = "trending", _ = Depends(require_auth)):
-    api_key = await get_config("tmdb_key", "")
-    if not api_key:
-        return {"ok": False, "error": "请先配置 TMDB API Key (themoviedb.org)"}
-    items = []
-    try:
-        if type == "trending":
-            items = await get_trending(api_key, "all", "day")
-        elif type == "nowplaying":
-            items = await get_now_playing(api_key)
-        elif type == "ontv":
-            items = await get_on_the_air(api_key)
-    except Exception as e:
-        return {"ok": False, "error": f"TMDB 请求失败: {e}"}
-    return {"ok": True, "count": len(items), "items": items[:10]}
 
 
 @app.post("/api/ai/test")
@@ -696,6 +698,33 @@ async def api_ai_test(_ = Depends(require_auth)):
     if reply:
         return {"ok": True, "reply": reply[:100]}
     return {"ok": False, "error": "API 无响应，请检查接口地址和 Key"}
+
+@app.post("/api/ai/models")
+async def api_ai_models(_ = Depends(require_auth)):
+    """Fetch available models from AI provider."""
+    key = await get_config("deepseek_key", "")
+    url = await get_config("ai_api_url", "https://api.deepseek.com/v1")
+    if not key:
+        return {"ok": False, "error": "请先配置 API Key"}
+    # Strip /chat/completions suffix to get base URL
+    base = url.rstrip("/")
+    if base.endswith("/chat/completions"):
+        base = base[:-len("/chat/completions")]
+    models_url = base.rstrip("/") + "/models"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                models_url,
+                headers={"Authorization": f"Bearer {key}"},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                models = [m["id"] for m in data.get("data", [])]
+                return {"ok": True, "models": models}
+            else:
+                return {"ok": False, "error": f"API 返回 {resp.status_code}: {resp.text[:200]}"}
+    except Exception as e:
+        return {"ok": False, "error": f"请求失败: {e}"}
 
 # ─── Telethon Mode API ──────────────────────────────────────────
 

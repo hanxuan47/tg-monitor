@@ -2,19 +2,25 @@
 TG Monitor - Database Layer (Optimized)
 SQLite async database with indexes and optimized queries.
 """
-import aiosqlite
+import asyncio
+import logging
 import os
 from datetime import datetime, timedelta
 from typing import Optional
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "data", "monitor.db")
+import aiosqlite
 
-# ─── Connection pool ──────────────────────────────────────────
+logger = logging.getLogger("tg-monitor.db")
+
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "monitor.db")
+
+# ─── Connection ──────────────────────────────────────────
 
 _db: Optional[aiosqlite.Connection] = None
 
 
 async def get_db():
+    """Get DB connection with auto-reconnect on failure."""
     global _db
     if _db is None:
         _db = await aiosqlite.connect(DB_PATH)
@@ -25,6 +31,23 @@ async def get_db():
         await _db.execute("PRAGMA busy_timeout=5000")
         await _db.execute("PRAGMA foreign_keys=ON")
     return _db
+
+
+async def _get_db_with_retry(max_retries: int = 3):
+    """Get DB connection, reconnecting if closed/dead."""
+    global _db
+    for attempt in range(max_retries):
+        try:
+            db = await get_db()
+            await db.execute("SELECT 1")  # Test connection
+            return db
+        except Exception as e:
+            logger.warning("DB connection failed (attempt %d/%d): %s", attempt + 1, max_retries, e)
+            _db = None  # Force reconnect
+            if attempt == max_retries - 1:
+                raise
+            await asyncio.sleep(0.5 * (attempt + 1))
+    raise RuntimeError("DB unavailable")
 
 
 async def close_db():
@@ -102,16 +125,16 @@ async def init_db():
 
 _config_cache: dict = {}
 _config_cache_ttl: datetime = datetime.min
+_CONFIG_CACHE_TTL_SECONDS = 60  # config rarely changes
 
 
 async def get_config(key: str, default: str = "") -> str:
     global _config_cache, _config_cache_ttl
 
-    # Return from cache if fresh (< 5 seconds)
-    if key in _config_cache and (datetime.now() - _config_cache_ttl).seconds < 5:
+    if key in _config_cache and (datetime.now() - _config_cache_ttl).seconds < _CONFIG_CACHE_TTL_SECONDS:
         return _config_cache[key]
 
-    db = await get_db()
+    db = await _get_db_with_retry()
     cursor = await db.execute("SELECT value FROM config WHERE key=?", (key,))
     row = await cursor.fetchone()
     value = row["value"] if row else default
@@ -123,7 +146,7 @@ async def get_config(key: str, default: str = "") -> str:
 
 async def set_config(key: str, value: str):
     global _config_cache
-    db = await get_db()
+    db = await _get_db_with_retry()
     await db.execute(
         "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=?",
         (key, value, value),

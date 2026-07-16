@@ -1219,7 +1219,12 @@
             </div>
             <div class="form-group" style="flex:1;margin-bottom:0">
                 <label style="font-size:11px;color:var(--text3)">模型名称</label>
-                <input type="text" id="aiModel" value="deepseek-chat" style="font-size:12px" placeholder="deepseek-chat">
+                <div style="display:flex;gap:6px">
+                    <select id="aiModelSelect" style="flex:1;font-size:12px;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--rs);color:var(--text)">
+                        <option value="">— 保存 Key 后自动加载 —</option>
+                    </select>
+                    <button class="btn btn-ghost btn-sm" onclick="fetchModels()" title="刷新模型列表" style="padding:4px 10px"><i class="fas fa-sync-alt"></i></button>
+                </div>
             </div>
             <button class="btn btn-ghost btn-sm" onclick="saveAIConfig()" style="align-self:flex-end">保存设置</button>
             <button class="btn btn-green btn-sm" onclick="testAIConnection()" style="align-self:flex-end"><i class="fas fa-plug"></i> 测试连接</button>
@@ -1281,38 +1286,6 @@
         </div>
     </div>
 
-    <!-- Media Tracker -->
-    <div class="card">
-        <div class="card-title"><i class="fas fa-film"></i> 影视追新通知</div>
-        <div class="alert alert-info"><i class="fas fa-info-circle"></i> 需要 TMDB API Key（免费，在 <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--blue)">themoviedb.org</a> 申请）</div>
-        <div class="form-row">
-            <div class="form-group" style="flex:2">
-                <input type="password" id="tmdbKeyInput" placeholder="TMDB API Key (v3 auth)" style="font-size:13px">
-            </div>
-            <button class="btn btn-primary btn-sm" onclick="saveTmdbKey()"><i class="fas fa-save"></i> 保存</button>
-        </div>
-        <div class="form-row" style="margin-top:12px">
-            <div class="form-group" style="flex:1">
-                <select id="mediaType" style="font-size:13px">
-                    <option value="trending">🔥 今日热门影视</option>
-                    <option value="nowplaying">🎬 正在热映</option>
-                    <option value="ontv">📺 今日更新剧集</option>
-                </select>
-            </div>
-            <div class="form-group" style="flex:1">
-                <select id="mediaTargetGroup" style="font-size:13px">
-                    <option value="">仅预览</option>
-                    {% for g in groups %}
-                    <option value="{{ g.group_id }}">发送到: {{ g.title }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <button class="btn btn-green btn-sm" onclick="checkMedia()"><i class="fas fa-search"></i> 查询</button>
-            <button class="btn btn-primary btn-sm" onclick="sendMediaToGroup()"><i class="fas fa-paper-plane"></i> 发送到群</button>
-        </div>
-        <div id="mediaResult" style="margin-top:12px;max-height:400px;overflow-y:auto;font-size:13px;line-height:1.8"></div>
-    </div>
-</div>
 
 </main>
 
@@ -1620,15 +1593,57 @@ async function saveAIKey() {
     const key = document.getElementById('deepseekKey').value.trim();
     if (!key) { toast('请输入 API Key', 'error'); return; }
     await api('POST', '/api/config', { key: 'deepseek_key', value: key });
+    // 保存 Key 自动启用 AI 聊天 + 拉取模型列表
+    await api('POST', '/api/config', { key: 'ai_chat_enabled', value: 'true' });
+    document.getElementById('aiChatToggle').checked = true;
     toast('API Key 已保存 ✅');
+    // 自动拉取模型列表
+    await fetchModels();
+}
+
+async function fetchModels() {
+    const el = document.getElementById('aiModelSelect');
+    const sel = document.getElementById('aiTestResult');
+    el.innerHTML = '<option value="">⏳ 加载中...</option>';
+    const r = await api('POST', '/api/ai/models');
+    if (r && r.ok && r.models && r.models.length) {
+        el.innerHTML = r.models.map(m => `<option value="${m}">${m}</option>`).join('');
+        toast(`已加载 ${r.models.length} 个模型 ✅`);
+        // 优先选中常用模型
+        const preferred = ['deepseek-chat', 'deepseek-reasoner', 'gpt-4o', 'gpt-4o-mini', 'claude-sonnet-4', 'qwen-turbo', 'qwen-plus'];
+        for (const p of preferred) {
+            if (r.models.includes(p)) { el.value = p; break; }
+        }
+        if (sel) { sel.innerHTML = `✅ 共 ${r.models.length} 个模型`; sel.style.color = 'var(--green)'; }
+    } else {
+        el.innerHTML = '<option value="">⚠️ 加载失败，请检查 Key 和接口地址</option>';
+        const err = r?.error || '无法获取模型列表';
+        if (sel) { sel.innerHTML = `❌ ${err}`; sel.style.color = 'var(--red)'; }
+        // 保留手动输入选项
+        const manual = document.createElement('option');
+        manual.value = '__manual__';
+        manual.textContent = '— 手动输入 —';
+        el.appendChild(manual);
+    }
 }
 
 async function saveAIConfig() {
     const url = document.getElementById('aiApiUrl').value.trim();
-    const model = document.getElementById('aiModel').value.trim();
+    const sel = document.getElementById('aiModelSelect');
+    let model = sel.value;
+    // 如果下拉没选或加载失败，允许手动输入
+    if (!model || model === '__manual__') {
+        model = prompt('请输入模型名称（如 deepseek-chat）:', 'deepseek-chat');
+        if (!model) return;
+    }
     if (url) await api('POST', '/api/config', { key: 'ai_api_url', value: url });
     if (model) await api('POST', '/api/config', { key: 'ai_model', value: model });
-    toast('AI 配置已保存 ✅');
+    // 保存 URL/模型 自动启用 AI 聊天
+    await api('POST', '/api/config', { key: 'ai_chat_enabled', value: 'true' });
+    document.getElementById('aiChatToggle').checked = true;
+    toast(`AI 配置已保存 ✅ 模型: ${model}`);
+    // 如果修改了接口地址，刷新模型列表
+    if (url) await fetchModels();
 }
 
 async function testAIConnection() {
@@ -1646,26 +1661,38 @@ async function testAIConnection() {
 }
 
 async function loadAIConfig() {
-    const r = await api('GET', '/api/config?key=ai_chat_enabled');
-    const keyR = await api('GET', '/api/config?key=deepseek_key');
-    const urlR = await api('GET', '/api/config?key=ai_api_url');
-    const modelR = await api('GET', '/api/config?key=ai_model');
-    const groupsR = await api('GET', '/api/config?key=ai_chat_groups');
+    // Batch read all AI configs in one request
+    const all = await api('GET', '/api/configs?keys=ai_chat_enabled,deepseek_key,ai_api_url,ai_model,ai_chat_groups');
+    const vals = (all && all.values) ? all.values : {};
     const toggle = document.getElementById('aiChatToggle');
-    if (r && toggle) toggle.checked = r.value === 'true';
+    if (toggle) toggle.checked = vals.ai_chat_enabled === 'true';
     const keyInput = document.getElementById('deepseekKey');
-    if (keyR && keyInput && keyR.value && keyR.value.length > 4) {
+    if (keyInput && vals.deepseek_key && vals.deepseek_key.length > 4) {
         keyInput.placeholder = '已配置 (点击修改)';
     }
     const urlInput = document.getElementById('aiApiUrl');
-    if (urlR && urlInput && urlR.value) urlInput.value = urlR.value;
-    const modelInput = document.getElementById('aiModel');
-    if (modelR && modelInput && modelR.value) modelInput.value = modelR.value;
+    if (urlInput && vals.ai_api_url) urlInput.value = vals.ai_api_url;
+    const modelSelect = document.getElementById('aiModelSelect');
+    if (modelSelect && vals.ai_model) {
+        // 如果有已保存的模型，先加到下拉并选中
+        const exists = Array.from(modelSelect.options).some(o => o.value === vals.ai_model);
+        if (!exists) {
+            const opt = document.createElement('option');
+            opt.value = vals.ai_model;
+            opt.textContent = vals.ai_model;
+            modelSelect.insertBefore(opt, modelSelect.firstChild);
+        }
+        modelSelect.value = vals.ai_model;
+    }
+    // 如果有 Key 但没有加载过模型列表，自动拉取
+    if (vals.deepseek_key && vals.deepseek_key.length > 4 && modelSelect && modelSelect.options.length <= 1) {
+        fetchModels();
+    }
     const groupsEl = document.getElementById('aiChatGroups');
-    if (groupsR && groupsEl) {
+    if (groupsEl) {
         const groups = await api('GET', '/api/groups');
         if (groups && groups.groups) {
-            const active = (groupsR.value || '').split(',').map(s => s.trim()).filter(Boolean);
+            const active = (vals.ai_chat_groups || '').split(',').map(s => s.trim()).filter(Boolean);
             groupsEl.innerHTML = groups.groups.map(g => {
                 const sel = active.includes(String(g.group_id)) ? 'checked' : '';
                 return `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer">
@@ -1849,45 +1876,6 @@ async function aiActiveGroups() {
     }
 }
 
-// ─── Media Tracker ───
-async function saveTmdbKey() {
-    const key = document.getElementById('tmdbKeyInput').value.trim();
-    if (!key) { toast('请输入 TMDB API Key', 'error'); return; }
-    await api('POST', '/api/config', { key: 'tmdb_key', value: key });
-    toast('TMDB Key 已保存 ✅');
-}
-async function checkMedia() {
-    const type = document.getElementById('mediaType').value;
-    const r = await api('GET', `/api/media/preview?type=${type}`);
-    const el = document.getElementById('mediaResult');
-    if (!r || !r.ok) { el.innerHTML = `<span style="color:var(--red)">❌ ${r?.error||'查询失败，请检查 TMDB Key 是否配置正确'}</span>`; return; }
-    el.innerHTML = `<div style="color:var(--text3);margin-bottom:8px">共 ${r.count} 条结果</div>`;
-    for (const item of r.items) {
-        const stars = '⭐'.repeat(Math.max(1, Math.round(item.vote / 2)));
-        el.innerHTML += `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
-            <b>${item.title}</b> ${stars}<br>
-            <span style="color:var(--text3);font-size:12px">${item.date || '?'} | ${item.type}</span>
-            <span style="color:var(--text3);font-size:12px"> ${item.overview ? '· '+item.overview.substring(0,60)+'...' : ''}</span>
-        </div>`;
-    }
-}
-async function sendMediaToGroup() {
-    const type = document.getElementById('mediaType').value;
-    const sel = document.getElementById('mediaTargetGroup');
-    const gid = parseInt(sel.value);
-    if (!gid) { toast('请选择目标群组', 'error'); return; }
-    const r = await api('POST', '/api/media/check', { type, group_id: gid });
-    if (r && r.ok) {
-        toast(`✅ 已发送 ${r.count} 条${r.title}到群聊`);
-        document.getElementById('mediaResult').innerHTML = `<div style="color:var(--green)">✅ 已推送 ${r.count} 条到群聊</div>`;
-    } else { toast(`发送失败: ${r?.error||'未知'}`, 'error'); }
-}
-// Load saved TMDB key
-(async function() {
-    const r = await api('GET', '/api/config?key=tmdb_key');
-    const el = document.getElementById('tmdbKeyInput');
-    if (r && el && r.value && r.value.length > 4) el.placeholder = '已配置 (点击修改)';
-})();
 
 // ─── Theme Toggle ───
 function toggleTheme() {
